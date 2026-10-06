@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: lucky-transport
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: MONGOMS_DISABLE_POSTINSTALL
+        value: "true"
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+      - key: COMPANY_NAME
+        value: Lucky Transport Services
+      - key: COMPANY_STATE_CODE
+        value: "27"
