@@ -6,7 +6,7 @@ import rateLimit from "express-rate-limit";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import mongoose from "mongoose";
-import { auth, operations } from "./middleware/auth.js";
+import { auth, operations, admin } from "./middleware/auth.js";
 import authRoutes from "./routes/auth.js";
 import masterRoutes from "./routes/masters.js";
 import tripRoutes from "./routes/trips.js";
@@ -15,7 +15,12 @@ import importRoutes from "./routes/imports.js";
 import exportRoutes from "./routes/exports.js";
 import { Trip, Vehicle, Invoice, Customer } from "./models/index.js";
 import { invoiceBalance } from "./services/paymentService.js";
-import { company } from "./config/env.js";
+import {
+  getCompanyProfile,
+  saveCompanyProfile,
+  companyProfileSchema,
+} from "./services/companyProfileService.js";
+import { transaction } from "./services/transactionService.js";
 import { wrap, ok, errorHandler, AppError } from "./utils/errors.js";
 export const app = express();
 app.set("trust proxy", 1);
@@ -54,7 +59,24 @@ app.get("/api/health", (req, res) => {
 });
 app.use("/api/auth", authRoutes);
 app.use("/api", auth);
-app.get("/api/settings", operations, (req, res) => ok(res, company()));
+app.get(
+  "/api/settings",
+  operations,
+  wrap(async (req, res) => ok(res, await getCompanyProfile())),
+);
+app.patch(
+  "/api/settings",
+  admin,
+  wrap(async (req, res) => {
+    const input = companyProfileSchema.parse(req.body);
+    ok(
+      res,
+      await transaction((session) =>
+        saveCompanyProfile(input, req.user, session),
+      ),
+    );
+  }),
+);
 app.get(
   "/api/dashboard",
   operations,

@@ -60,7 +60,7 @@ The server serves `client/dist` and uses SPA fallback for React routes. Health: 
 
 ## Configuration
 
-`MONGODB_URI` and `JWT_SECRET` are required. `JWT_EXPIRES_IN` defaults to 8h. `PORT` defaults to 3001. `FRONTEND_URL` is a comma-separated exact-origin allowlist. `NODE_ENV=production` blocks development seeding. All `COMPANY_*` values are documented in `.env.example`; fill address, phone, email, GSTIN, PAN, state and banking information before issuing invoices. Company details are frozen on each invoice. `COMPANY_STATE_CODE` defaults provisionally to Maharashtra 27. For separately hosted clients, set `VITE_API_URL` at build time to the backend `/api` URL; never put secrets in Vite variables.
+`MONGODB_URI` and `JWT_SECRET` are required. `JWT_EXPIRES_IN` defaults to 8h. `PORT` defaults to 3001. `FRONTEND_URL` is a comma-separated exact-origin allowlist. `NODE_ENV=production` blocks development seeding. Admins can enter company, tax, banking and invoice clauses under More → Settings → Company profile. The profile is stored in MongoDB, so edits need no redeploy. Managers can view it. `COMPANY_*` environment variables provide initial defaults until the profile is first saved. Fill these details in Settings before issuing invoices. Company details are frozen on each invoice. `COMPANY_STATE_CODE` defaults provisionally to Maharashtra 27. For separately hosted clients, set `VITE_API_URL` at build time to the backend `/api` URL; never put secrets in Vite variables.
 
 ## Roles
 

@@ -92,28 +92,4 @@ export function Reports() {
     </>
   );
 }
-export function Settings() {
-  const r = useData("/settings");
-  return (
-    <>
-      <h1>Company settings</h1>
-      <p className="notice">
-        Company and bank information are configured through server environment
-        variables. Complete these values before issuing live invoices.
-      </p>
-      <State {...r}>
-        <section className="card">
-          <dl>
-            {r.data &&
-              Object.entries(r.data).map(([k, v]) => (
-                <React.Fragment key={k}>
-                  <dt>{k}</dt>
-                  <dd>{v || "Not configured"}</dd>
-                </React.Fragment>
-              ))}
-          </dl>
-        </section>
-      </State>
-    </>
-  );
-}
+export { default as Settings } from "./Settings";

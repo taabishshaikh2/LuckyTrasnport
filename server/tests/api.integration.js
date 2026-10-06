@@ -89,6 +89,58 @@ test(
       );
       assert.equal((await post("/masters/routes", {}, manager)).status, 403);
     });
+    await t.test(
+      "company profile permissions, validation and persistence",
+      async () => {
+        const original = await get("/settings");
+        assert.equal(original.status, 200);
+        const profile = {
+          ...original.body.data,
+          name: "Profile Test Company",
+          stateCode: "27",
+          gstin: "",
+          pan: "ABCDE1234F",
+          phone: "9000000000",
+          email: "billing@example.com",
+          bankName: "Example Bank",
+          bankAccount: "001234567890",
+          bankIfsc: "ABCD0123456",
+        };
+        const patch = (data, auth = token) =>
+          request(app)
+            .patch("/api/settings")
+            .set("Authorization", "Bearer " + auth)
+            .send(data);
+        assert.equal((await patch(profile, manager)).status, 403);
+        assert.equal(
+          (
+            await request(app)
+              .get("/api/settings")
+              .set("Authorization", "Bearer " + driver)
+          ).status,
+          403,
+        );
+        assert.equal((await patch({ ...profile, pan: "invalid" })).status, 400);
+        assert.equal(
+          (await patch({ ...profile, bankIfsc: "invalid" })).status,
+          400,
+        );
+        const saved = await patch(profile);
+        assert.equal(saved.status, 200, JSON.stringify(saved.body));
+        const read = await get("/settings");
+        assert.equal(read.body.data.name, profile.name);
+        assert.equal(read.body.data.bankAccount, "001234567890");
+        const managerRead = await request(app)
+          .get("/api/settings")
+          .set("Authorization", "Bearer " + manager);
+        assert.equal(managerRead.status, 200);
+        const { Audit } = await import("../models/index.js");
+        assert.equal(
+          await Audit.countDocuments({ entity: "CompanyProfile" }),
+          1,
+        );
+      },
+    );
     await t.test("masters and normalized duplicate vehicle", async () => {
       const items = {
         vehicles: { vehicleNumber: "MH 02 AB 1234", vehicleType: "17 FT" },
@@ -258,6 +310,29 @@ test(
         400,
       );
     });
+    await t.test(
+      "company edits preserve finalized invoice snapshots",
+      async () => {
+        assert.equal(invoice.companySnapshot.name, "Profile Test Company");
+        const profile = (await get("/settings")).body.data;
+        const changed = await request(app)
+          .patch("/api/settings")
+          .set("Authorization", "Bearer " + token)
+          .send({
+            ...profile,
+            name: "Renamed Company",
+            bankAccount: "009999999999",
+          });
+        assert.equal(changed.status, 200, JSON.stringify(changed.body));
+        const existing = (await get("/invoices/" + invoice._id)).body.data;
+        assert.equal(existing.companySnapshot.name, "Profile Test Company");
+        assert.equal(existing.companySnapshot.bankAccount, "001234567890");
+        assert.equal(
+          (await get("/settings")).body.data.name,
+          "Renamed Company",
+        );
+      },
+    );
     await t.test("authenticated binary downloads", async () => {
       for (const suffix of ["pdf", "docx"]) {
         const r = await get("/exports/invoices/" + invoice._id + "." + suffix);

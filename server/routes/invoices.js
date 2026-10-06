@@ -10,7 +10,7 @@ import {
 } from "../services/invoiceCalculationService.js";
 import { invoiceBalance, recordPayment } from "../services/paymentService.js";
 import { transaction } from "../services/transactionService.js";
-import { company } from "../config/env.js";
+import { getCompanyProfile } from "../services/companyProfileService.js";
 import { wrap, ok, AppError } from "../utils/errors.js";
 import { z } from "zod";
 const r = Router();
@@ -55,7 +55,8 @@ async function prepare(input, session) {
   const base = trips
     .reduce((d, t) => d.add(t.totalAmount), new Decimal(0))
     .toNumber();
-  const calc = calculateInvoice(base, input, company().stateCode);
+  const profile = await getCompanyProfile(session);
+  const calc = calculateInvoice(base, input, profile.stateCode);
   const from = new Date(Math.min(...trips.map((t) => +t.periodFrom)));
   const to = new Date(Math.max(...trips.map((t) => +t.periodTo)));
   const invoiceMonth = from.toLocaleDateString("en-IN", {
@@ -94,7 +95,7 @@ async function prepare(input, session) {
     location: trips.map((t) => t.dropLocation).join(", "),
     description,
     amountInWords: amountInWords(calc.totalAmount),
-    companySnapshot: company(),
+    companySnapshot: profile,
   };
 }
 r.post(

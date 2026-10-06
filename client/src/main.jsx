@@ -137,7 +137,7 @@ function App() {
             <Route path="payments" element={<Payments />} />
             <Route path="import" element={<Import />} />
             <Route path="reports" element={<Reports />} />
-            <Route path="settings" element={<Settings />} />
+            <Route path="settings" element={<Settings user={user} />} />
           </>
         )}
         <Route path="*" element={<Navigate to="/" replace />} />

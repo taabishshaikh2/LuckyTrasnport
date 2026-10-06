@@ -260,3 +260,28 @@ export const masters = {
   routes: Route,
   rates: Rate,
 };
+
+export const CompanyProfile = mongoose.model(
+  "CompanyProfile",
+  new Schema(
+    {
+      _id: { type: String, default: "company" },
+      name: String,
+      address: String,
+      phone: String,
+      email: String,
+      gstin: String,
+      pan: String,
+      stateCode: String,
+      bankName: String,
+      bankAccount: String,
+      bankIfsc: String,
+      tagline: String,
+      disputeClause: String,
+      interestClause: String,
+      paymentClause: String,
+      updatedBy: ref("User"),
+    },
+    { timestamps: true },
+  ),
+);
