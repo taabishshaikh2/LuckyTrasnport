@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import BillingInvoiceForm, { Narration } from "../features/BillingInvoiceForm";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useData } from "../hooks/useData";
 import { api, message, download } from "../api/client";
@@ -81,13 +82,14 @@ export function InvoiceList() {
     </>
   );
 }
-function TaxSummary({ i }) {
+export function TaxSummary({ i }) {
   return (
     <section className="card">
       <h3>Invoice summary</h3>
       <dl>
         {[
           ["Taxable value", i.baseAmount],
+          ["Other reimbursements", i.nonTaxableAmount || 0],
           ["CGST " + i.cgstRate + "%", i.cgstAmount],
           ["SGST " + i.sgstRate + "%", i.sgstAmount],
           ["IGST " + i.igstRate + "%", i.igstAmount],
@@ -106,156 +108,7 @@ function TaxSummary({ i }) {
     </section>
   );
 }
-export function InvoiceForm() {
-  const nav = useNavigate(),
-    customers = useData("/masters/customers"),
-    trips = useData("/trips"),
-    [value, setValue] = useState({
-      customerId: "",
-      tripIds: [],
-      invoiceDate: today(),
-      dueDate: today(),
-      stateCode: "27",
-      placeOfSupply: "Maharashtra",
-      sacNo: "996601",
-      cgstRate: 0,
-      sgstRate: 0,
-      igstRate: 0,
-      description: "",
-      roundToRupee: true,
-      taxConfirmed: false,
-    }),
-    [preview, setPreview] = useState(null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  function change(k, v) {
-    setValue((x) => ({
-      ...x,
-      [k]: v,
-      ...(k === "customerId" ? { tripIds: [] } : {}),
-    }));
-    setPreview(null);
-  }
-  async function review(e) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      setPreview((await api.post("/invoices/preview", value)).data.data);
-    } catch (e) {
-      setError(message(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function save() {
-    setBusy(true);
-    try {
-      const r = await api.post("/invoices", {
-        ...value,
-        expectedTotal: preview.totalAmount,
-      });
-      nav("/invoices/" + r.data.data._id);
-    } catch (e) {
-      setError(message(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <>
-      <h1>Create invoice</h1>
-      <p className="muted">
-        Select eligible trips and verify place of supply and GST rates before
-        issuing.
-      </p>
-      {error && <p className="error">{error}</p>}
-      <form onSubmit={review}>
-        <section className="card form-grid">
-          <Field
-            name="customerId"
-            label="Customer"
-            required
-            options={(customers.data || []).map((c) => ({
-              value: c._id,
-              label: c.companyName,
-            }))}
-            value={value.customerId}
-            onChange={change}
-          />
-          {[
-            ["invoiceDate", "Invoice date", "date"],
-            ["dueDate", "Due date", "date"],
-            ["stateCode", "Place of supply state code", "text"],
-            ["placeOfSupply", "Place of supply", "text"],
-            ["sacNo", "SAC", "text"],
-            ["cgstRate", "CGST %", "number"],
-            ["sgstRate", "SGST %", "number"],
-            ["igstRate", "IGST %", "number"],
-            ["description", "Description (blank = generated)", "textarea"],
-            ["roundToRupee", "Round to rupee", "checkbox"],
-            ["taxConfirmed", "I verified tax configuration", "checkbox"],
-          ].map(([name, label, type]) => (
-            <Field
-              key={name}
-              name={name}
-              label={label}
-              type={type}
-              value={value[name]}
-              onChange={change}
-            />
-          ))}
-        </section>
-        <h2>Eligible trips</h2>
-        {trips.loading && <p>Loading trips…</p>}
-        {(trips.error || customers.error) && (
-          <p className="error">{trips.error || customers.error}</p>
-        )}
-        {trips.data
-          ?.filter(
-            (t) =>
-              String(t.customerId?._id) === value.customerId &&
-              ["Approved", "Completed"].includes(t.status),
-          )
-          .map((t) => (
-            <label className="card check-row" key={t._id}>
-              <input
-                type="checkbox"
-                checked={value.tripIds.includes(t._id)}
-                onChange={(e) =>
-                  change(
-                    "tripIds",
-                    e.target.checked
-                      ? [...value.tripIds, t._id]
-                      : value.tripIds.filter((id) => id !== t._id),
-                  )
-                }
-              />
-              <span>
-                {t.tripId} · {t.pickupLocation} → {t.dropLocation}
-              </span>
-              <strong>{currency(t.totalAmount)}</strong>
-            </label>
-          ))}
-        <button disabled={busy || !value.taxConfirmed || !value.tripIds.length}>
-          Review invoice
-        </button>
-      </form>
-      {preview && (
-        <>
-          <TaxSummary i={preview} />
-          <section className="card">
-            <h3>Description</h3>
-            <p>{preview.description}</p>
-          </section>
-          <button disabled={busy} onClick={save}>
-            Issue invoice
-          </button>
-        </>
-      )}
-    </>
-  );
-}
+export function InvoiceForm() { return <BillingInvoiceForm />; }
 export function PaymentForm({ invoice, onSaved }) {
   const [value, setValue] = useState({
       invoiceId: invoice._id,
@@ -358,6 +211,7 @@ export function InvoiceDetail() {
             </p>
           </section>
           <TaxSummary i={i} />
+          {i.lineItems?.length > 0 && <Narration invoice={i} />}
           <section className="card row">
             <span>Received {currency(i.received)}</span>
             <strong>Outstanding {currency(i.outstanding)}</strong>

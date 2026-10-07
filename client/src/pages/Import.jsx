@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { sites } from "../../../shared/sites.js";
 import { useNavigate } from "react-router-dom";
 import { api, message, download } from "../api/client";
 import { Field, Calculation } from "../components/UI";
@@ -92,15 +93,16 @@ export default function Import() {
       <p className="eyebrow">IMPORT WORKFLOW</p>
       <h1>Import Excel challans</h1>
       <p className="muted">
-        Upload → map columns → validate → confirm. Each row becomes one separate
-        draft trip; vehicle numbers are matched automatically.
+        Upload → map columns → validate → confirm. Each challan becomes one
+        draft trip; repeated rows for one challan stay together. Vehicle numbers are matched automatically.
       </p>
+      <Field name="site" label="Site / Excel format" options={sites} value={header.site} onChange={change} />
       <button
         className="quiet"
         onClick={async () => {
           try {
             await download(
-              "/exports/import-template.xlsx",
+              "/exports/import-template.xlsx?site=" + header.site,
               "trip-import-template.xlsx",
             );
           } catch (e) {
@@ -149,7 +151,7 @@ export default function Import() {
         </label>
         <Field
           name="sheetName"
-          label="Worksheet name (blank = first sheet)"
+          label="Worksheet name (blank = first trip table)"
           value={sheetName}
           onChange={(_, v) => setSheetName(v)}
         />

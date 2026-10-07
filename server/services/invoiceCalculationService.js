@@ -14,7 +14,7 @@ export function calculateInvoice(base, input, companyState) {
   const cgstAmount = tax(input.cgstRate),
     sgstAmount = tax(input.sgstRate),
     igstAmount = tax(input.igstRate);
-  const exact = d.add(cgstAmount).add(sgstAmount).add(igstAmount);
+  const exact = d.add(input.nonTaxableAmount || 0).add(cgstAmount).add(sgstAmount).add(igstAmount);
   const totalAmount = input.roundToRupee
     ? exact.toDecimalPlaces(0, Decimal.ROUND_HALF_UP).toNumber()
     : money(exact);

@@ -13,8 +13,11 @@ import {
 } from "../components/UI";
 import { SheetFields, SheetSummary } from "../features/SheetFields";
 import TripForm from "../features/TripForm";
+import TripTable from "../features/TripTable";
+import { sites } from "../../../shared/sites.js";
 export function TripList({ user }) {
   const records = useData("/trips"),
+    [site,setSite]=useState(""),
     [search, setSearch] = useState(""),
     [status, setStatus] = useState(""),
     [from, setFrom] = useState(""),
@@ -23,6 +26,7 @@ export function TripList({ user }) {
     [exporting, setExporting] = useState(false);
   const exportableTrips = (records.data || []).filter(
     (t) =>
+      (!site || t.site === site) &&
       (!status || t.status === status) &&
       (!from || t.periodFrom.slice(0, 10) >= from) &&
       (!to || t.periodFrom.slice(0, 10) <= to),
@@ -40,6 +44,7 @@ export function TripList({ user }) {
           </Link>
         )}
       </div>
+      <Field name="site" label="Site" options={[{value:"",label:"All sites"},...sites]} value={site} onChange={(_,v)=>setSite(v)} />
       <div className="filters">
         <input
           placeholder="Search ID, customer, vehicle, route or driver…"
@@ -99,7 +104,7 @@ export function TripList({ user }) {
               setExporting(true);
               setExportError("");
               try {
-                const q = new URLSearchParams({ from, to, status });
+                const q = new URLSearchParams({ from, to, status, site });
                 await download("/exports/trips.xlsx?" + q, "trips.xlsx");
               } catch (e) {
                 setExportError(message(e));
@@ -114,6 +119,7 @@ export function TripList({ user }) {
       )}
       {exportError && <p className="error">{exportError}</p>}
       <State {...records}>
+        <TripTable trips={exportableTrips.filter(t=>JSON.stringify(t).toLowerCase().includes(search.toLowerCase()))} />
         <div className="card-grid">
           {records.data
             ?.filter(
@@ -121,7 +127,8 @@ export function TripList({ user }) {
                 JSON.stringify(t)
                   .toLowerCase()
                   .includes(search.toLowerCase()) &&
-                (!status || t.status === status) &&
+                (!site || t.site === site) &&
+      (!status || t.status === status) &&
                 (!from || t.periodFrom.slice(0, 10) >= from) &&
                 (!to || t.periodFrom.slice(0, 10) <= to),
             )

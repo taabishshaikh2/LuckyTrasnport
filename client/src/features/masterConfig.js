@@ -1,3 +1,4 @@
+import { sites } from "../../../shared/sites.js";
 const f = (name, label, type = "text", options) => ({
   name,
   label,
@@ -7,6 +8,18 @@ const f = (name, label, type = "text", options) => ({
 const status = (options) => f("status", "Status", "text", options);
 const notes = f("notes", "Notes", "textarea");
 export const config = {
+  agreements: {
+    title:"Vehicle agreements", label:"name", id:"agreementId",
+    defaults:{shiftHours:8,fixedKm:3000,fixedRate:0,mileage:1,fuelType:"Diesel",fuelRate:0,amcRate:0,serviceRate:0,overtimeRate:0,managementMonthly:0,parkingMonthly:0,airportEntryRate:0,airportTaxable:false,contractYear:1,active:true},
+    fields:[f("name","Agreement name"),f("vehicleId","Vehicle"),f("customerId","Billing customer"),f("site","Site","text",sites),
+      f("effectiveFrom","Effective from","date"),f("effectiveTo","Effective to","date"),f("deploymentDate","Deployment date","date"),
+      f("contractYear","Vehicle contract year","number"),f("shiftHours","Shift hours","text",["8","16","24"]),
+      f("fixedKm","Contracted monthly KM","number"),f("fixedRate","Fixed rate per KM","number"),f("mileage","Agreed mileage (KM per fuel unit)","number"),
+      f("fuelType","Fuel type","text",["Diesel","CNG","Petrol"]),f("fuelRate","Default fuel rate","number"),
+      f("amcRate","AMC per actual KM","number"),f("serviceRate","Additional service per shift","number"),f("overtimeRate","Additional duty per hour","number"),
+      f("managementMonthly","Monthly management charge for this vehicle","number"),f("parkingMonthly","Monthly parking for this vehicle","number"),
+      f("airportEntryRate","Airport entry per token","number"),f("airportTaxable","Airport entry taxable","checkbox"),f("active","Active","checkbox"),notes],
+  },
   vehicles: {
     title: "Vehicles",
     label: "vehicleNumber",
@@ -101,7 +114,7 @@ export const config = {
     defaults: {
       minKm: 0,
       maxKm: 50,
-      baseHours: 12,
+      baseHours: 8,
       baseRate: 0,
       perKmRate: 0,
       perHourRate: 0,

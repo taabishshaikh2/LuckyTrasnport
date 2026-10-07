@@ -98,7 +98,7 @@ r.patch(
       const originalId = old.tripId;
       const previous = old.toObject();
       const replacement = await createTrip(
-        input,
+        { ...input, editingId: old._id },
         req.user,
         s,
         old.source || "Manual",

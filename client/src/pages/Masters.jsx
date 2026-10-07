@@ -10,7 +10,8 @@ export default function Masters({ entity, user }) {
     records = useData("/masters/" + entity),
     vehicles = useData("/masters/vehicles"),
     routes = useData("/masters/routes"),
-    drivers = useData("/masters/drivers");
+    drivers = useData("/masters/drivers"),
+    customers = useData("/masters/customers");
   const [search, setSearch] = useState(""),
     [filter, setFilter] = useState(""),
     [edit, setEdit] = useState(params.has("new") ? { ...cfg.defaults } : null),
@@ -19,7 +20,7 @@ export default function Masters({ entity, user }) {
     [busy, setBusy] = useState(false),
     [success, setSuccess] = useState("");
   const canEdit =
-    !["rates", "routes", "users"].includes(entity) || user.role === "ADMIN";
+    !["rates", "routes", "users", "agreements"].includes(entity) || user.role === "ADMIN";
   useEffect(() => {
     if (params.has("new")) {
       setEdit({ ...cfg.defaults });
@@ -66,8 +67,9 @@ export default function Masters({ entity, user }) {
     }
   }
   const optionsFor = (name) =>
-    name === "assignedVehicleId"
+    name === "assignedVehicleId" || name === "vehicleId"
       ? vehicles.data?.map((v) => ({ value: v._id, label: v.vehicleNumber }))
+      : name === "customerId" ? customers.data?.map(v=>({value:v._id,label:v.companyName}))
       : name === "routeId"
         ? routes.data?.map((v) => ({ value: v._id, label: v.routeName }))
         : name === "driverId"

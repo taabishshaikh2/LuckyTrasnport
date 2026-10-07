@@ -100,6 +100,7 @@ export function Field({
           id={inputId}
           required={required}
           type={type}
+          onInput={(e) => { if (type === "date" || type === "month") onChange(name,e.currentTarget.value); }}
           min={type === "number" ? 0 : undefined}
           step={type === "number" ? "any" : undefined}
           inputMode={type === "number" ? "decimal" : undefined}

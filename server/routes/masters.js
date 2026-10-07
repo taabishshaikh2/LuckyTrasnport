@@ -16,6 +16,7 @@ import { transaction } from "../services/transactionService.js";
 import { wrap, ok, AppError } from "../utils/errors.js";
 const r = Router();
 const meta = {
+  agreements: ["agreementId", "AGR-"],
   vehicles: ["vehicleId", "V"],
   drivers: ["driverId", "D"],
   customers: ["customerId", "C"],
@@ -104,10 +105,21 @@ r.get(
   }),
 );
 const permission = (req, res, next) =>
-  ["routes", "rates"].includes(req.entity)
+  ["routes", "rates", "agreements"].includes(req.entity)
     ? admin(req, res, next)
     : operations(req, res, next);
 async function references(entity, v, session) {
+  if (entity === "agreements") {
+    for (const [model,key] of [[masters.vehicles,"vehicleId"],[masters.customers,"customerId"]])
+      if (!await model.exists({_id:v[key],archived:false}).session(session)) throw new AppError("Agreement reference unavailable");
+    await masters.vehicles.updateOne({_id:v.vehicleId},{$inc:{referenceVersion:1}},{session});
+    const overlaps = await masters.agreements.exists({ vehicleId:v.vehicleId, customerId:v.customerId,
+      site:v.site, active:true, archived:false, ...(v._id ? {_id:{$ne:v._id}} : {}),
+      effectiveFrom:{$lte:v.effectiveTo || new Date("9999-12-31")},
+      $or:[{effectiveTo:{$gte:v.effectiveFrom}},{effectiveTo:{$exists:false}},{effectiveTo:null}],
+    }).session(session);
+    if (v.active && overlaps) throw new AppError("Overlapping vehicle agreements; end the previous agreement first");
+  }
   if (
     entity === "drivers" &&
     v.assignedVehicleId &&
@@ -158,7 +170,7 @@ r.patch(
     id.parse(req.params.id);
     const v = masterSchemas[req.entity].parse(req.body);
     const record = await transaction(async (session) => {
-      await references(req.entity, v, session);
+      await references(req.entity, { ...v, _id: req.params.id }, session);
       const old = await req.Model.findById(req.params.id).session(session);
       if (!old || old.archived) throw new AppError("Record unavailable", 404);
       if (

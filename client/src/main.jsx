@@ -123,6 +123,7 @@ function App() {
               "customers",
               "routes",
               "rates",
+              "agreements",
               ...(user.role === "ADMIN" ? ["users"] : []),
             ].map((entity) => (
               <Route

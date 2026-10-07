@@ -4,7 +4,7 @@ import { operations } from "../middleware/auth.js";
 import { id } from "../validators/index.js";
 import {
   tripWorkbook,
-  importTemplate,
+  importTemplate, siteWorkbook, allSitesWorkbook,
 } from "../services/excelExportService.js";
 import { tripDocx, invoiceDocx } from "../services/docxService.js";
 import { invoicePdf } from "../services/pdfService.js";
@@ -32,13 +32,14 @@ const send = (res, buffer, name, ext) =>
 r.get(
   "/import-template.xlsx",
   wrap(async (req, res) =>
-    send(res, importTemplate(), "trip-import-template", "xlsx"),
+    send(res, importTemplate(req.query.site), "trip-import-template", "xlsx"),
   ),
 );
 r.get(
   "/trips.xlsx",
   wrap(async (req, res) => {
     const filter = {};
+    if (req.query.site) filter.site=String(req.query.site);
     for (const key of ["customerId", "vehicleId", "routeId"])
       if (req.query[key]) filter[key] = id.parse(req.query[key]);
     if (req.query.status) filter.status = String(req.query.status);
@@ -46,6 +47,10 @@ r.get(
     if (req.query.invoiceId) {
       const i = await Invoice.findById(id.parse(req.query.invoiceId));
       if (!i) throw new AppError("Invoice not found", 404);
+      if (i.tripSnapshot?.length || i.narration?.vehicles?.length) {
+        const profile=i.site;
+        return send(res,profile ? siteWorkbook(i.tripSnapshot || [],profile,i) : await tripWorkbook(i.tripSnapshot || []),i.invoiceNumber + "-supporting","xlsx");
+      }
       filter._id = { $in: i.tripIds };
     }
     if (req.query.from || req.query.to)
@@ -62,7 +67,7 @@ r.get(
         "No trips match the selected filters. Create or import trips before exporting.",
         404,
       );
-    send(res, await tripWorkbook(trips), "lucky-trip-sheet", "xlsx");
+    send(res, req.query.site ? siteWorkbook(trips,String(req.query.site)) : trips.some(t=>t.site) ? await allSitesWorkbook(trips) : await tripWorkbook(trips), "lucky-trip-sheet", "xlsx");
   }),
 );
 r.get(

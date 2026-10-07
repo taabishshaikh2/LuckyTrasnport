@@ -82,12 +82,26 @@ async function prepare(req, session) {
     periodTo: defaults.periodTo,
     durationFormat,
   });
+  // Explicit challan numbers join continuation rows into one logical trip.
+  const grouped=[]; const challans=new Map(); const exactRows=new Set();
+  for (const row of rows) {
+    const identity=JSON.stringify({...row.data,srNo:undefined});
+    if (exactRows.has(identity)) {row.status="Duplicate";row.warnings.push("Identical duty row repeated; skipped");continue;}
+    exactRows.add(identity);
+    const key=row.data.challanNumber ? [norm(row.data.challanNumber),norm(row.data.vehicleNo)].join(":") : "";
+    const prior=key && challans.get(key);
+    if (prior) {
+      prior.continuations.push(row);
+      prior.errors.push(...row.errors); prior.warnings.push(...row.warnings);
+      if (prior.errors.length) prior.status="Invalid";
+    } else {row.continuations=[];grouped.push(row);if(key) challans.set(key,row);}
+  }
   const vehicles = await Vehicle.find({ archived: false }).session(
     session || null,
   );
   const lookup = new Map(vehicles.map((v) => [norm(v.vehicleNumber), v]));
   const seen = new Set();
-  for (const row of rows) {
+  for (const row of grouped) {
     if (row.status === "Invalid") continue;
     const e = row.data;
     try {
@@ -107,6 +121,13 @@ async function prepare(req, session) {
         row.warnings.push("Challan number missing; add it to this draft later");
       if (!defaults.driverId)
         row.warnings.push("Driver unassigned; assign before submission");
+      const allEntries=[row,...row.continuations].map(r=>r.data).sort((a,b)=>(a.date+a.openingTime).localeCompare(b.date+b.openingTime));
+      for (const segment of allEntries) {
+        const duty=pickupDuty(segment);
+        if (duty) {segment.totalHours=duty.totalHours; segment.closingDate=duty.closingDate;}
+        if (segment.closingKm && segment.closingKm<segment.openingKm) throw new Error("Closing KM precedes opening KM");
+        if (segment.closingKm) segment.distanceKm=segment.closingKm-segment.openingKm;
+      }
       const duty = pickupDuty(e);
       if (duty) {
         if (duty.inferred)
@@ -126,15 +147,15 @@ async function prepare(req, session) {
       const input = tripSchema.parse({
         ...defaults,
         vehicleId: String(vehicle._id),
-        periodFrom: e.date,
-        periodTo: e.date,
+        periodFrom: allEntries[0].date,
+        periodTo: allEntries.reduce((max,s)=>s.closingDate>max ? s.closingDate : s.date>max ? s.date : max,allEntries[0].date),
         status: "Draft",
-        entries: [e],
-        totalHours: e.totalHours,
-        distanceKm: e.distanceKm,
+        entries: allEntries,
+        totalHours: allEntries.reduce((n,s)=>n+s.totalHours,0),
+        distanceKm: allEntries.reduce((n,s)=>n+s.distanceKm,0),
         pickupLocation: e.pickupLocation || defaults.pickupLocation,
         dropLocation: e.dropLocation || defaults.dropLocation,
-        extraAmount: e.tollParking,
+        extraAmount: defaults.dutyKind === "Branded" ? 0 : allEntries.reduce((n,s)=>n+s.tollParking,0),
         deductionAmount: 0,
         manualAmount: undefined,
         overrideAmount: undefined,
@@ -145,9 +166,9 @@ async function prepare(req, session) {
           e.challanNumber
             ? [
                 defaults.customerId,
+                defaults.site || defaults.routeId,
                 norm(e.challanNumber),
                 norm(e.vehicleNo),
-                e.date,
               ]
             : [
                 defaults.customerId,
@@ -207,7 +228,11 @@ async function prepare(req, session) {
       row.status = "Invalid";
     }
   }
-  const accepted = rows.filter((x) => ["Valid", "Warning"].includes(x.status));
+  for (const row of grouped) for (const continuation of row.continuations) {
+    continuation.status="Continuation";
+    continuation.warnings.push("Part of challan trip at row " + row.rowNumber + "; one base fare for the whole trip");
+  }
+  const accepted = grouped.filter((x) => ["Valid", "Warning"].includes(x.status));
   const reviewToken = hash(
     JSON.stringify(
       rows.map((x) => ({
@@ -233,7 +258,7 @@ async function prepare(req, session) {
   };
 }
 const response = (p) => ({
-  rows: p.rows.map(({ input, fingerprint, ...row }) => row),
+  rows: p.rows.map(({ input, fingerprint, continuations, ...row }) => row),
   calculation: p.calculation,
   reviewToken: p.reviewToken,
   successfulRows: p.accepted.length,

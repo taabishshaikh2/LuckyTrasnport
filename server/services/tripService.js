@@ -12,6 +12,25 @@ import { pickupDuty } from "./dutyTimeService.js";
 import { sequence } from "./sequenceService.js";
 import { AppError } from "../utils/errors.js";
 export async function previewTrip(input, session) {
+  for (const entry of input.entries) {
+    if (entry.closingKm) {
+      if (entry.closingKm < entry.openingKm) throw new AppError("Closing KM precedes opening KM");
+      entry.distanceKm = entry.closingKm-entry.openingKm;
+    }
+  }
+  if (input.entries.some(e=>e.closingKm || e.distanceKm)) input.distanceKm=input.entries.reduce((n,e)=>n+(e.distanceKm || 0),0);
+  if (input.entries.some(e=>e.tollParking)) input.extraAmount=input.dutyKind === "Branded" ? 0 : input.entries.reduce((n,e)=>n+(e.tollParking || 0),0);
+  const challans = new Set(input.entries.map(e => e.challanNumber?.trim()).filter(Boolean));
+  if (input.site && challans.size > 1) throw new AppError("One challan is one trip. Create separate trips for different challans");
+  if (input.entries.length > 1) {
+    let hours = 0;
+    for (const entry of input.entries) {
+      const duty = pickupDuty(entry);
+      if (duty) { entry.totalHours = duty.totalHours; entry.closingDate = duty.closingDate; }
+      hours += entry.totalHours || 0;
+    }
+    input.totalHours = Math.round(hours * 60) / 60;
+  }
   if (input.entries.length === 1) {
     const duty = pickupDuty(input.entries[0]);
     if (duty) {
@@ -50,7 +69,9 @@ export async function previewTrip(input, session) {
     null,
     opts,
   ).lean();
-  const rate = selectRate(rates, {
+  const rate = input.dutyKind === "Branded" ? {
+    billingMethod: "Fixed Trip Rate", baseRate: 0, baseHours: 0, overtimeRate: 0,
+  } : selectRate(rates, {
     ...input,
     vehicleType: vehicle.vehicleType,
   });
@@ -86,7 +107,7 @@ export async function createTrip(input, user, session, source = "Manual") {
     [Driver, p.driver],
     [Customer, p.customer],
     [Route, p.route],
-    [Rate, p.rate],
+    ...(input.dutyKind === "Branded" ? [] : [[Rate, p.rate]]),
   ]) {
     const [Model, record] = modelAndRecord;
     if (!record) continue;
@@ -106,6 +127,14 @@ export async function createTrip(input, user, session, source = "Manual") {
     }).session(session);
     if (busy)
       throw new AppError("Vehicle or driver already has an active trip", 409);
+  }
+  if (input.site && input.entries[0]?.challanNumber) {
+    const duplicate = await Trip.exists({ customerId: input.customerId, site: input.site,
+      "entries.challanNumber": input.entries[0].challanNumber, status:{$ne:"Cancelled"},
+      ...(input.editingId ? {_id:{$ne:input.editingId}} : {}),
+    }).session(session);
+    if (duplicate) throw new AppError("This challan already has a trip for this site/customer",409);
+    await Customer.updateOne({_id:input.customerId},{$inc:{referenceVersion:1}},{session});
   }
   const calc = p.calculation;
   const tripId = await sequence("trip", "TR-", session);

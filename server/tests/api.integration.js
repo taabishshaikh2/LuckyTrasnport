@@ -525,5 +525,58 @@ test(
         );
       },
     );
+    await t.test("fleet fixed and variable invoices coexist; claims, stale review and cancellation are enforced",async()=>{
+      const vehicle=(await post("/masters/vehicles",{vehicleNumber:"MH02FC9001",vehicleType:"17 FT"})).body.data;
+      const agreementInput={name:"Gateway test agreement",vehicleId:vehicle._id,customerId:refs.customers._id,site:"Inbound",
+        effectiveFrom:"2026-01-01",shiftHours:24,fixedKm:5000,fixedRate:25.76,mileage:7,fuelType:"Diesel",fuelRate:100,
+        serviceRate:1914,amcRate:2,parkingMonthly:50,airportEntryRate:250,airportTaxable:false,overtimeRate:200};
+      assert.equal((await post("/masters/agreements",agreementInput,manager)).status,403);
+      const agreement=await post("/masters/agreements",agreementInput);
+      assert.equal(agreement.status,201,JSON.stringify(agreement.body));
+      assert.equal((await post("/masters/agreements",agreementInput)).status,400);
+      const base={customerId:refs.customers._id,site:"Inbound",billingType:"Fixed",vehicleIds:[vehicle._id],
+        periodFrom:"2026-10-01",periodTo:"2026-10-31",invoiceDate:"2026-10-07",dueDate:"2026-11-07",
+        stateCode:"27",placeOfSupply:"Maharashtra",cgstRate:9,sgstRate:9,taxConfirmed:true};
+      const p=await post("/invoices/preview",base);assert.equal(p.status,200,JSON.stringify(p.body));
+      assert.equal(p.body.data.baseAmount,128800);
+      const raced=await Promise.all([1,2].map(()=>post("/invoices",{...base,expectedTotal:p.body.data.totalAmount,reviewToken:p.body.data.reviewToken})));
+      assert.deepEqual(raced.map(r=>r.status).sort(),[201,409]);
+      const issued=raced.find(r=>r.status===201);
+      assert.equal(issued.status,201,JSON.stringify(issued.body));
+      assert.equal((await post("/invoices/preview",base)).status,409);
+      const variable={...base,billingType:"Variable",periodFrom:"2026-10-16",metrics:[{vehicleId:vehicle._id,
+        distanceKm:70,additionalServices:2,overtimeHours:0.5,airportEntries:4,parkingFraction:0.5,reason:"Reviewed period records and half monthly parking"}]};
+      const vp=await post("/invoices/preview",variable);assert.equal(vp.status,200,JSON.stringify(vp.body));
+      assert.equal(vp.body.data.baseAmount,5093);assert.equal(vp.body.data.nonTaxableAmount,1000);
+      const vi=await post("/invoices",{...variable,expectedTotal:vp.body.data.totalAmount,reviewToken:vp.body.data.reviewToken});
+      assert.equal(vi.status,201,JSON.stringify(vi.body));
+      const excel=await get("/exports/trips.xlsx?invoiceId="+vi.body.data._id).buffer(true).parse((res,done)=>{
+        const chunks=[];res.on("data",b=>chunks.push(b));res.on("end",()=>done(null,Buffer.concat(chunks)));res.on("error",done);
+      });assert.equal(excel.status,200);
+      const file=XLSX.read(excel.body,{type:"buffer"});assert.ok(file.SheetNames.includes("Narration"));
+      assert.equal((await get("/exports/invoices/"+vi.body.data._id+".pdf")).status,200);
+      assert.equal((await get("/exports/invoices/"+vi.body.data._id+".docx")).status,200);
+      assert.equal((await post("/invoices/"+issued.body.data._id+"/cancel",{reason:"Test cancellation"})).status,200);
+      const fresh=await post("/invoices/preview",base);assert.equal(fresh.status,200);
+      await request(app).patch("/api/masters/agreements/"+agreement.body.data._id).set("Authorization","Bearer "+token).send({...agreementInput,fixedRate:25.75});
+      assert.equal((await post("/invoices",{...base,expectedTotal:fresh.body.data.totalAmount,reviewToken:fresh.body.data.reviewToken})).status,409);
+    });
+    await t.test("one challan across daily rows imports as one trip, with one base fare",async()=>{
+      const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.json_to_sheet([
+        {Date:"2026-10-10","Vehicle No":"MH02AB1234","Challan Number":"CONT-001","Opening Time":"12:00","Closing Time":"20:00","AWB NO":"0008",CUSTOMER:"WAYLANE"},
+        {Date:"2026-10-11","Vehicle No":"MH02AB1234","Challan Number":"CONT-001","Opening Time":"12:00","Closing Time":"20:00","AWB NO":"0008",CUSTOMER:"WAYLANE"},
+      ]),"Trips");
+      const upload=await request(app).post("/api/imports/upload").set("Authorization","Bearer "+token)
+        .attach("file",XLSX.write(book,{type:"buffer",bookType:"xlsx"}),"continuation.xlsx");
+      const payload={header:{customerId:refs.customers._id,routeId:refs.routes._id,site:"Outbound",periodFrom:"2026-10-01",periodTo:"2026-10-31"},mapping:upload.body.data.mapping};
+      const url="/imports/"+upload.body.data.batchId;
+      const p=await post(url+"/preview",payload);assert.equal(p.status,200,JSON.stringify(p.body));assert.equal(p.body.data.successfulRows,1);
+      assert.equal(p.body.data.rows[1].status,"Continuation");
+      const result=await post(url+"/confirm",{...payload,confirm:true,reviewToken:p.body.data.reviewToken});
+      assert.equal(result.status,201,JSON.stringify(result.body));assert.equal(result.body.data.trips.length,1);
+      const record=await Trip.findById(result.body.data.trips[0]._id);assert.equal(record.entries.length,2);
+      assert.equal(record.totalHours,16);assert.equal(record.baseAmount,4000);assert.equal(record.overtimeAmount,1000);
+      assert.equal(record.entries[0].awbNumber,"0008");
+    });
   },
 );

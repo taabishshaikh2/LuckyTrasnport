@@ -27,6 +27,7 @@ export const moreItems = [
   ["/drivers", "Drivers", Users],
   ["/customers", "Customers", Contact],
   ["/rates", "Rate chart", BookOpen],
+  ["/agreements", "Vehicle agreements", BookOpen],
   ["/routes", "Locations", MapPin],
   ["/payments", "Payments", Wallet],
   ["/reports", "Reports & exports", FileSpreadsheet],

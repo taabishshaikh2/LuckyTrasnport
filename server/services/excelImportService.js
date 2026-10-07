@@ -1,6 +1,8 @@
 import XLSX from "xlsx";
 import { entrySchema } from "../validators/index.js";
 export const importFields = [
+  "awbNumber", "customerName", "sdcCharges", "openingKm", "closingKm", "additionalKm",
+  "additionalServices", "airportEntries", "fuelLitres",
   "srNo",
   "date",
   "challanNumber",
@@ -27,6 +29,10 @@ export const importFields = [
   "remarks",
 ];
 const aliases = {
+  awbNumber: ["awbno", "awbnumber"], customerName: ["customer", "customername"],
+  sdcCharges: ["sdccharges"], openingKm: ["openingkm"], closingKm: ["closingkm"],
+  additionalKm: ["additionalkm", "addkm"], additionalServices: ["additionalservicecharges", "additionalservicesemergencypickup"],
+  airportEntries: ["domesticairportterminal1entry", "airportentries"], fuelLitres: ["fuellitres"],
   srNo: ["srno", "sno", "serialnumber"],
   date: ["date", "tripdate"],
   challanNumber: ["challan", "challanno", "challannumber"],
@@ -58,8 +64,8 @@ const aliases = {
   overtimeKm: ["otinkm", "overtimekm"],
   gtAmount: ["gtamount", "otamount", "overtimeamount"],
   tripCharges: ["tripcharges", "8hrspertripcharges", "amtpertripcharges"],
-  tollParking: ["tollandparking", "tollparking"],
-  totalServiceCharges: ["totalsvccharges", "totalservicecharges"],
+  tollParking: ["tollandparking", "tollparking", "cashfasttagtoll", "cashfastagtoll", "tollreimbursementvasai virarthanevashi".replace(/ /g,"")],
+  totalServiceCharges: ["totalsvccharges", "totalservicecharges", "totalamount", "totalsdccharges"],
   distanceKm: ["distance", "distancekm", "km"],
   billingGroup: ["billinggroup", "servicegroup"],
   remarks: ["remarks", "notes"],
@@ -119,6 +125,7 @@ export function excelDate(v) {
 }
 export function durationHours(v, mode = "decimal") {
   if (v == null || v === "") return 0;
+  if (String(v).includes(":")) mode = "hoursMinutes";
   if (mode === "excelTime") {
     const n = Number(v);
     if (!Number.isFinite(n) || n < 0) throw new Error("Invalid Excel duration");
@@ -172,6 +179,7 @@ export function validateRows(rows, mapping, header = {}) {
           v = durationHours(v, header.durationFormat || "decimal");
         else if (
           [
+            "sdcCharges", "openingKm", "closingKm", "additionalKm", "additionalServices", "airportEntries", "fuelLitres",
             "gtAmount",
             "distanceKm",
             "overtimeKm",
@@ -219,74 +227,60 @@ export function validateRows(rows, mapping, header = {}) {
   });
 }
 export function parseWorkbook(buffer, sheetName) {
-  const book = XLSX.read(buffer, { type: "buffer", cellDates: false });
-  const name = sheetName || book.SheetNames[0];
-  const sheet = book.Sheets[name];
-  if (!sheet) throw new Error("Worksheet not found");
-  const range = XLSX.utils.decode_range(sheet["!ref"] || "A1");
-  if (range.e.r > 2100 || range.e.c > 100)
-    throw new Error("Maximum 2,000 trip rows and 100 columns per import");
-  for (const [key, c] of Object.entries(sheet))
-    if (c?.f && c.v == null)
-      throw new Error(
-        "Formula without saved result at " +
-          key +
-          ". Recalculate and save in Excel",
-      );
-  const grid = XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    defval: "",
-    blankrows: true,
-  });
-  const headerIndex = grid.findIndex((row) => {
-    const m = detectMapping(row.map(String));
-    return m.date && (m.vehicleNo || m.totalHours || m.openingTime);
-  });
-  if (headerIndex < 0)
-    throw new Error(
-      "Could not find the trip table headings. Include Date and Vehicle No columns",
-    );
-  const used = grid[headerIndex]
-    .map((h, i) => ({ h: String(h).trim(), i }))
-    .filter((x) => x.h);
-  const headers = used.map((x) => x.h);
-  if (new Set(headers).size !== headers.length)
-    throw new Error("Table headings must be unique");
-  const mapping = detectMapping(headers),
-    rows = [];
-  let ignoredRows = headerIndex;
-  for (let i = headerIndex + 1; i < grid.length; i++) {
-    const values = grid[i];
-    if (!values.some((v) => v !== "")) {
-      ignoredRows++;
+  const book=XLSX.read(buffer,{type:"buffer",cellDates:false,cellNF:true});
+  const isHeader=row=>{const m=detectMapping(row.map(String)); return m.date && (m.vehicleNo || m.totalHours || m.openingTime);};
+  const name=sheetName || book.SheetNames.find(n=>XLSX.utils.sheet_to_json(book.Sheets[n],{header:1,defval:"",raw:false}).some(isHeader));
+  const sheet=book.Sheets[name];
+  if (!sheet) throw new Error("Select a worksheet containing a trip table");
+  const range=XLSX.utils.decode_range(sheet["!ref"] || "A1");
+  if (range.e.r>10000 || range.e.c>100) throw new Error("Maximum 10,000 worksheet rows and 100 columns");
+  const grid=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",blankrows:true,raw:false});
+  const headerIndex=grid.findIndex(isHeader);
+  if (headerIndex<0) throw new Error("Could not find Date and Vehicle No table headings");
+  let used, mapping, headers, currentHeaders, firstMapping;
+  const uniqueHeaders=row=>{const seen={}; return row.map((h,i)=>({h:String(h).trim(),i})).filter(x=>x.h).map(x=>({...x,h:(seen[x.h]=(seen[x.h] || 0)+1)>1 ? x.h+" ("+seen[x.h]+")" : x.h}));};
+  const rows=[]; let ignoredRows=headerIndex;
+  for (let i=headerIndex;i<grid.length;i++) {
+    const values=grid[i];
+    if (isHeader(values)) {
+      used=uniqueHeaders(values); currentHeaders=used.map(x=>x.h); mapping=detectMapping(currentHeaders);
+      if (!headers) {headers=currentHeaders; firstMapping=mapping;}
+      else ignoredRows++;
       continue;
     }
-    const row = Object.fromEntries(used.map((x) => [x.h, values[x.i] ?? ""]));
-    const first = String(values.find((v) => v !== "") || "").trim();
-    if (
-      /^(total(?:\s|$)|grand total|vendor|dhl representative|signature)/i.test(
-        first,
-      ) ||
-      String(row[mapping.date]).trim() === mapping.date
-    ) {
-      ignoredRows++;
-      continue;
+    if (!values.some(v=>v!=="")) {ignoredRows++;continue;}
+    const first=String(values.find(v=>v!=="") || "").trim();
+    if (/^(total(?:\s|$)|grand total|vendor|dhl representative|signature)/i.test(first)) {ignoredRows++;continue;}
+    const rawRow={};
+    for (const x of used) {
+      const field=Object.keys(mapping).find(f=>mapping[f]===x.h);
+      const addr=XLSX.utils.encode_cell({r:i,c:x.i});
+      let c=sheet[addr], value=values[x.i] ?? "";
+      if (field === "date" && !value) {
+        const merged=sheet["!merges"]?.find(m=>i>=m.s.r && i<=m.e.r && x.i>=m.s.c && x.i<=m.e.c);
+        if (merged) {c=sheet[XLSX.utils.encode_cell(merged.s)];value=c?.w ?? c?.v ?? "";}
+      }
+      if (field && c?.f && c.v==null) throw new Error("Formula without saved result at "+addr+"; recalculate and save in Excel");
+      if (["date","closingDate"].includes(field) && typeof c?.v === "number") value=excelDate(c.v);
+      if (["sdcCharges","openingKm","closingKm","additionalKm","additionalServices","airportEntries","fuelLitres","tripCharges","gtAmount","tollParking","totalServiceCharges","distanceKm","overtimeKm"].includes(field) && typeof c?.v === "number") value=c.v;
+      rawRow[x.h]=value;
     }
-    if (!row[mapping.date] && !row[mapping.vehicleNo]) {
-      ignoredRows++;
-      continue;
-    }
-    row.__rowNumber = i + 1;
-    rows.push(row);
+    if (!rawRow[mapping.date] || (!rawRow[mapping.vehicleNo] && !rawRow[mapping.openingTime] && !rawRow[mapping.totalHours])) {ignoredRows++;continue;}
+    const row={};
+    for (const h of headers) row[h]=rawRow[h] ?? "";
+    for (const f of importFields) if (firstMapping[f] && mapping[f]) row[firstMapping[f]]=rawRow[mapping[f]];
+    row.__rowNumber=i+1; rows.push(row);
   }
-  if (rows.length > 2000) throw new Error("Maximum 2,000 trip rows per import");
-  return {
-    headers,
-    rows,
-    selectedSheet: name,
-    sheetNames: book.SheetNames,
-    mapping,
-    headerRow: headerIndex + 1,
-    ignoredRows,
-  };
+  if (rows.length>2000) throw new Error("Maximum 2,000 trip rows per import; select a smaller worksheet");
+  if (book.Sheets.References) {
+    const refs=XLSX.utils.sheet_to_json(book.Sheets.References,{defval:"",raw:false});
+    for (const [field,heading] of [["challanNumber","Challan Number"],["closingDate","Closing Date"],["huNumber","HU Number"],["remarks","Remarks"]]) {
+      if (!firstMapping[field]) {headers.push(heading);firstMapping[field]=heading;}
+      for (const row of rows) {
+        const reference=refs.find(r=>String(r["SR.NO"])===String(row[firstMapping.srNo]));
+        if (reference && !row[firstMapping[field]]) row[firstMapping[field]]=reference[heading];
+      }
+    }
+  }
+  return {headers,rows,selectedSheet:name,sheetNames:book.SheetNames,mapping:firstMapping,headerRow:headerIndex+1,ignoredRows};
 }

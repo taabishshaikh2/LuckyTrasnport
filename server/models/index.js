@@ -36,6 +36,18 @@ export const Vehicle = make("Vehicle", {
   status: { type: String, default: "Active" },
   notes: String,
 });
+export const Agreement = make("Agreement", {
+  ...common, agreementId: { type: String, unique: true }, name: String,
+  vehicleId: ref("Vehicle"), customerId: ref("Customer"), site: String,
+  effectiveFrom: Date, effectiveTo: Date, deploymentDate: Date, contractYear: Number,
+  shiftHours: Number, fixedKm: Number, fixedRate: Number, mileage: Number, fuelType: String,
+  fuelRate: Number, amcRate: Number, serviceRate: Number, overtimeRate: Number,
+  managementMonthly: Number, parkingMonthly: Number, airportEntryRate: Number,
+  airportTaxable: { type: Boolean, default: false }, active: { type: Boolean, default: true }, notes: String,
+});
+export const BillingClaim = make("BillingClaim", {
+  key: { type: String, unique: true }, invoiceId: ref("Invoice"),
+});
 export const Driver = make("Driver", {
   ...common,
   driverId: { type: String, unique: true },
@@ -100,6 +112,9 @@ export const Rate = make("Rate", {
 });
 const entry = new Schema(
   {
+    awbNumber: String, customerName: String, sdcCharges: Number,
+    openingKm: Number, closingKm: Number, additionalKm: Number, additionalServices: Number,
+    airportEntries: Number, fuelLitres: Number,
     challanNumber: String,
     huNumber: String,
     billingGroup: String,
@@ -130,6 +145,7 @@ const entry = new Schema(
 export const Trip = make(
   "Trip",
   {
+    site: String, dutyKind: { type: String, default: "Adhoc" },
     tripId: { type: String, unique: true },
     customerId: ref("Customer"),
     vehicleId: ref("Vehicle"),
@@ -187,6 +203,11 @@ export const Trip = make(
 export const Invoice = make(
   "Invoice",
   {
+    billingType: { type: String, default: "Adhoc" }, site: String,
+    supportingTripIds: [ref("Trip")], vehicleIds: [ref("Vehicle")],
+    narration: Schema.Types.Mixed, lineItems: [Schema.Types.Mixed],
+    tripSnapshot: [Schema.Types.Mixed], nonTaxableAmount: Number,
+    reviewToken: String,
     invoiceNumber: { type: String, unique: true },
     invoiceDate: Date,
     dueDate: Date,
@@ -230,6 +251,7 @@ export const Invoice = make(
         unique: true,
         partialFilterExpression: {
           status: { $in: ["Pending", "Partially Paid", "Paid", "Overdue"] },
+          "tripIds.0": { $exists: true },
         },
       },
     );
@@ -276,6 +298,7 @@ export const Audit = make("Audit", {
   changedBy: ref("User"),
 });
 export const masters = {
+  agreements: Agreement,
   vehicles: Vehicle,
   drivers: Driver,
   customers: Customer,

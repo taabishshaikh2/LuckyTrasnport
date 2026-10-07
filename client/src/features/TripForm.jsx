@@ -4,7 +4,9 @@ import { useData } from "../hooks/useData";
 import { api, message } from "../api/client";
 import { Field, Calculation, today } from "../components/UI";
 import { SheetFields } from "./SheetFields";
+import { sites } from "../../../shared/sites.js";
 export const initialTrip = () => ({
+  site: "Inbound", dutyKind:"Adhoc", pickupLocation:"MIDC",dropLocation:"Cargo",
   customerId: "",
   routeId: "",
   vehicleId: "",
@@ -25,6 +27,11 @@ export function AssignmentFields({ value, onChange, importing = false }) {
     drivers = useData("/masters/drivers");
   return (
     <>
+      <Field name="site" label="Site" required options={sites} value={value.site} onChange={(k,v)=>{
+        const selected=sites.find(s=>s.value===v);
+        onChange(k,v);onChange("pickupLocation",selected?.origin || "");onChange("dropLocation",selected?.destination || "");
+      }} />
+      <Field name="dutyKind" label="Duty type" options={["Adhoc","Branded"]} value={value.dutyKind} onChange={onChange} />
       <Field
         name="customerId"
         label="Customer"
@@ -141,7 +148,9 @@ export default function TripForm({ existing, onClose }) {
       if (p[k] === "" || p[k] == null) delete p[k];
     return p;
   };
-  async function review() {
+  async function review(event) {
+    const inputs=event.currentTarget.closest("section").querySelectorAll("input");
+    for (const input of inputs) if (!input.reportValidity()) return;
     setBusy(true);
     setError("");
     try {
@@ -202,21 +211,20 @@ export default function TripForm({ existing, onClose }) {
             <h2>Trip-sheet columns</h2>
             <p>
               Opening time is pickup arrival. With opening and closing times,
-              duty hours are calculated automatically. Otherwise enter decimal
-              duty hours above. Source amounts are kept for reference.
+              duty hours are calculated automatically. Use a closing date for
+              overnight or multi-day duty. One challan is one trip; supporting daily records stay together.
+              Source amounts are kept for comparison.
             </p>
-            <SheetFields
-              entry={value.entries[0]}
-              onChange={(k, v) =>
-                change("entries", [
-                  {
-                    ...(value.entries[0] || {}),
-                    date: value.periodFrom,
-                    [k]: v,
-                  },
-                ])
-              }
-            />
+            {(value.entries.length ? value.entries : [{date:value.periodFrom}]).map((entry,index)=><section className="card form-grid" key={index}>
+              <Field name="date" label="Duty record date" type="date" value={entry.date || value.periodFrom} onChange={(k,v)=>change("entries",(value.entries.length?value.entries:[entry]).map((e,i)=>i===index?{...e,[k]:v}:e))}/>
+              <SheetFields entry={entry} onChange={(k,v)=>change("entries",(value.entries.length?value.entries:[entry]).map((e,i)=>i===index?{...e,date:e.date || value.periodFrom,[k]:v}:e))}/>
+              {index>0 && <button className="quiet" onClick={()=>change("entries",value.entries.filter((_,i)=>i!==index))}>Remove daily record</button>}
+            </section>)}
+            <button className="quiet" onClick={()=>change("entries",[
+              ...(value.entries.length?value.entries:[{date:value.periodFrom}]),
+              {date:value.periodTo,challanNumber:value.entries[0]?.challanNumber || ""},
+            ])}>+ Daily continuation for this challan</button>
+
           </>
         ) : (
           <>

@@ -9,6 +9,8 @@ import {
   PageOrientation,
   TextRun,
 } from "docx";
+import { siteTripRows } from "./excelExportService.js";
+import { siteColumns, durationText } from "../../shared/sites.js";
 const para = (text, bold = false) =>
   new Paragraph({
     children: [new TextRun({ text: String(text ?? ""), bold, size: 20 })],
@@ -106,6 +108,7 @@ export async function invoiceDocx(i, balance) {
       [i.state, i.stateCode, i.placeOfSupply].join(" / "),
     ],
     ["Taxable value", i.baseAmount],
+    ["Other reimbursements", i.nonTaxableAmount || 0],
     ["CGST (" + i.cgstRate + "%)", i.cgstAmount],
     ["SGST (" + i.sgstRate + "%)", i.sgstAmount],
     ["IGST (" + i.igstRate + "%)", i.igstAmount],
@@ -150,6 +153,24 @@ export async function invoiceDocx(i, balance) {
             para("Authorised Signatory", true),
           ],
         },
+        ...(i.lineItems?.length ? [{children:[
+          para("NARRATION / AMOUNT CALCULATION",true),para(i.invoiceNumber),
+          new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[
+            row(["Vehicle","Description","Quantity","Rate","Amount","Tax"]),
+            ...i.lineItems.map(l=>row([l.vehicleNumber || "Period",l.description,l.quantity,l.rate,l.amount,l.taxable?"Taxable":"Other"])),
+          ]}),
+          ...(i.narration?.vehicles || []).flatMap(v=>[
+            para(v.vehicleNumber+" — "+v.agreement.name+" — "+(v.metrics.reason || "")),
+            para(i.billingType === "Variable" ? "Fuel basis: "+v.metrics.distanceKm+" KM / "+v.agreement.mileage+" mileage x "+(v.metrics.fuelRate ?? v.agreement.fuelRate) :
+              "Shift: "+v.agreement.shiftHours+" hours; contract KM: "+v.agreement.fixedKm+"; rate: "+v.agreement.fixedRate),
+          ]),
+          ...(i.narration?.periodCharges || []).map(c=>para(c.description+" — "+c.allocationNote)),
+        ]}] : []),
+        ...(i.tripSnapshot?.length ? [{properties:{page:{size:{width:23811,height:16838,orientation:PageOrientation.LANDSCAPE}}},children:[
+          para("TRIP DETAILS",true),new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[row(siteColumns.map(c=>c[0])),
+            ...siteTripRows(i.tripSnapshot).map(e=>row(siteColumns.map(([,k])=>["perTripHours","totalHours","gtInHours"].includes(k)?durationText(e[k]):e[k] ?? ""))),
+          ]}),
+        ]}] : []),
       ],
     }),
   );

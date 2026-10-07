@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { sites } from "../../shared/sites.js";
+const site = z.enum(sites.map(s => s.value));
 const str = z.string().trim();
 const required = str.min(1).max(250);
 const optional = str.max(2000).optional().default("");
@@ -43,6 +45,16 @@ export const methods = [
   "Mutually Agreed / Manual",
 ];
 export const masterSchemas = {
+  agreements: z.object({
+    name: required, vehicleId: id, customerId: id, site,
+    effectiveFrom: date, effectiveTo: optDate, deploymentDate: optDate,
+    contractYear: num.min(1).max(30).default(1), shiftHours: z.coerce.number().refine(v => [8,16,24].includes(v)),
+    fixedKm: num.positive(), fixedRate: num.positive(), mileage: num.positive(),
+    fuelType: z.enum(["Diesel", "CNG", "Petrol"]), fuelRate: n, amcRate: n,
+    serviceRate: n, overtimeRate: n, managementMonthly: n, parkingMonthly: n,
+    airportEntryRate: n, airportTaxable: z.boolean().default(false),
+    active: z.boolean().default(true), notes: optional,
+  }).refine(v => !v.effectiveTo || v.effectiveTo >= v.effectiveFrom, "Effective end must follow start"),
   vehicles: z.object({
     vehicleNumber: required.transform((v) =>
       v.toUpperCase().replace(/[^A-Z0-9]/g, ""),
@@ -125,6 +137,9 @@ const time = z
   .union([str.regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:mm"), z.literal("")])
   .optional();
 export const entrySchema = z.object({
+  awbNumber: optional, customerName: optional, sdcCharges: n,
+  openingKm: n, closingKm: n, additionalKm: n, additionalServices: n,
+  airportEntries: n, fuelLitres: n,
   challanNumber: optional,
   huNumber: optional,
   billingGroup: optional,
@@ -152,6 +167,7 @@ export const entrySchema = z.object({
 });
 export const tripSchema = z
   .object({
+    site: site.optional(), dutyKind: z.enum(["Adhoc", "Branded"]).default("Adhoc"),
     customerId: id,
     vehicleId: id,
     driverId: optId,
@@ -173,14 +189,29 @@ export const tripSchema = z
     expectedTotal: num.optional(),
   })
   .refine((v) => v.periodTo >= v.periodFrom, "Period end must follow start");
+export const periodChargeSchema = z.object({
+  description: required, amount: num, taxable: z.boolean().default(true),
+  allocationNote: required,
+});
+const vehicleMetrics = z.object({
+  vehicleId: id, distanceKm: num.optional(), fuelRate: num.optional(),
+  additionalServices: num.optional(), overtimeHours: num.optional(), airportEntries: num.optional(),
+  fuelLitres: num.optional(), extraFuelRate: num.optional(), fixedFraction: num.max(1).optional(),
+  parkingFraction: num.max(1).optional(), managementFraction: num.max(1).optional(),
+  reason: optional,
+});
 export const invoiceSchema = z
   .object({
     customerId: id,
+    billingType: z.enum(["Fixed", "Variable", "Adhoc"]).default("Adhoc"),
+    site: site.optional(), periodFrom: optDate, periodTo: optDate,
+    vehicleIds: z.array(id).max(100).default([]).refine(v => new Set(v).size === v.length, "Duplicate vehicle selection"),
+    metrics: z.array(vehicleMetrics).max(100).default([]).refine(v => new Set(v.map(m => m.vehicleId)).size === v.length, "Duplicate vehicle metrics"),
+    periodCharges: z.array(periodChargeSchema).max(100).default([]),
     tripIds: z
       .array(id)
-      .min(1)
-      .max(100)
-      .refine((v) => new Set(v).size === v.length, "Duplicate trip selection"),
+      .max(2000)
+      .refine((v) => new Set(v).size === v.length, "Duplicate trip selection").default([]),
     invoiceDate: date,
     dueDate: date,
     stateCode: str.regex(/^\d{2}$/),
@@ -196,7 +227,8 @@ export const invoiceSchema = z
   .refine(
     (v) => v.dueDate >= v.invoiceDate,
     "Due date must follow invoice date",
-  );
+  ).refine(v => !v.periodFrom || !v.periodTo || v.periodTo >= v.periodFrom, "Period end must follow start")
+  .refine(v => v.billingType === "Adhoc" ? v.tripIds.length > 0 : !!(v.site && v.periodFrom && v.periodTo && v.vehicleIds.length), "Select trips for Adhoc, or site, period and vehicles for fleet billing");
 export const paymentSchema = z.object({
   invoiceId: id,
   paymentDate: date,
