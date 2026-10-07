@@ -125,6 +125,14 @@ const time = z
   .union([str.regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:mm"), z.literal("")])
   .optional();
 export const entrySchema = z.object({
+  challanNumber: optional,
+  huNumber: optional,
+  billingGroup: optional,
+  closingDate: optional,
+  overtimeKm: n,
+  tripCharges: n,
+  tollParking: n,
+  totalServiceCharges: n,
   srNo: num.optional(),
   date,
   vehicleNo: optional,
@@ -146,7 +154,7 @@ export const tripSchema = z
   .object({
     customerId: id,
     vehicleId: id,
-    driverId: id,
+    driverId: optId,
     routeId: id,
     periodFrom: date,
     periodTo: date,

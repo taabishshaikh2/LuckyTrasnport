@@ -8,9 +8,18 @@ import {
   Audit,
 } from "../models/index.js";
 import { selectRate, calculateTrip } from "./tripCalculationService.js";
+import { pickupDuty } from "./dutyTimeService.js";
 import { sequence } from "./sequenceService.js";
 import { AppError } from "../utils/errors.js";
 export async function previewTrip(input, session) {
+  if (input.entries.length === 1) {
+    const duty = pickupDuty(input.entries[0]);
+    if (duty) {
+      input.totalHours = duty.totalHours;
+      input.entries[0].totalHours = duty.totalHours;
+      input.entries[0].closingDate = duty.closingDate;
+    }
+  }
   const opts = { session };
   // MongoDB sessions must not run parallel commands within a transaction.
   const vehicle = await Vehicle.findById(input.vehicleId, null, opts);
@@ -19,19 +28,23 @@ export async function previewTrip(input, session) {
   const route = await Route.findById(input.routeId, null, opts);
   if (
     !vehicle ||
-    !driver ||
+    (input.driverId && !driver) ||
     !customer ||
     !route ||
-    [vehicle, driver, customer, route].some((x) => x.archived) ||
+    [vehicle, driver, customer, route]
+      .filter(Boolean)
+      .some((x) => x.archived) ||
     !customer.active ||
     !route.active
   )
     throw new AppError("Select available customer, vehicle, driver and route");
   if (
     ["Maintenance", "Inactive"].includes(vehicle.status) ||
-    ["On Leave", "Inactive"].includes(driver.status)
+    ["On Leave", "Inactive"].includes(driver?.status)
   )
     throw new AppError("Vehicle or driver is unavailable");
+  if (input.status === "Submitted" && !driver)
+    throw new AppError("Assign a driver before submitting the trip");
   const rates = await Rate.find(
     { routeId: route._id, active: true, archived: false },
     null,
@@ -76,6 +89,7 @@ export async function createTrip(input, user, session, source = "Manual") {
     [Rate, p.rate],
   ]) {
     const [Model, record] = modelAndRecord;
+    if (!record) continue;
     const touched = await Model.updateOne(
       { _id: record._id, archived: false },
       { $inc: { referenceVersion: 1 } },
@@ -149,6 +163,7 @@ export async function availability(trip, session) {
     [Vehicle, trip.vehicleId, ["Maintenance", "Inactive"]],
     [Driver, trip.driverId, ["On Leave", "Inactive"]],
   ]) {
+    if (!id) continue;
     const record = await Model.findById(id).session(session);
     if (!record || protectedStatuses.includes(record.status)) continue;
     const key = Model.modelName === "Vehicle" ? "vehicleId" : "driverId";

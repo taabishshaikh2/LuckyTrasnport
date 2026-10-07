@@ -349,6 +349,112 @@ test(
       );
     });
     await t.test(
+      "bulk mixed vehicles, independent charges, review token and overlapping files",
+      async () => {
+        const vehicle = (
+          await post("/masters/vehicles", {
+            vehicleNumber: "MH02AB5678",
+            vehicleType: "17 FT",
+          })
+        ).body.data;
+        const rows = [
+          {
+            Date: "2026-10-06",
+            "Vehicle No": "MH02AB1234",
+            "Challan Number": "BULK1",
+            "Opening Time": "12:00",
+            "Closing Time": "20:30",
+            "Total Hrs": "8.30",
+            "Toll And Parking": 50,
+          },
+          {
+            Date: "2026-10-06",
+            "Vehicle No": vehicle.vehicleNumber,
+            "Challan Number": "BULK2",
+            "Opening Time": "12:00",
+            "Closing Time": "01:00",
+            "Total Hrs": "13.00",
+          },
+        ];
+        const uploadRows = async (list) => {
+          const b = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(
+            b,
+            XLSX.utils.json_to_sheet(list),
+            "Trips",
+          );
+          return request(app)
+            .post("/api/imports/upload")
+            .set("Authorization", "Bearer " + token)
+            .attach(
+              "file",
+              XLSX.write(b, { type: "buffer", bookType: "xlsx" }),
+              "bulk.xlsx",
+            );
+        };
+        const uploaded = await uploadRows([...rows, rows[0]]);
+        assert.equal(uploaded.status, 200, JSON.stringify(uploaded.body));
+        const payload = {
+          header: {
+            customerId: refs.customers._id,
+            routeId: refs.routes._id,
+            periodFrom: "2026-10-01",
+            periodTo: "2026-10-31",
+          },
+          mapping: uploaded.body.data.mapping,
+          durationFormat: "hoursMinutes",
+        };
+        const url = "/imports/" + uploaded.body.data.batchId;
+        const p = await post(url + "/preview", payload);
+        assert.equal(p.status, 200, JSON.stringify(p.body));
+        assert.equal(p.body.data.successfulRows, 2);
+        assert.equal(p.body.data.duplicateRows, 1);
+        assert.equal(p.body.data.calculation.totalAmount, 8300);
+        assert.equal(
+          (
+            await post(url + "/confirm", {
+              ...payload,
+              confirm: true,
+              reviewToken: "stale",
+            })
+          ).status,
+          409,
+        );
+        const saved = await post(url + "/confirm", {
+          ...payload,
+          confirm: true,
+          reviewToken: p.body.data.reviewToken,
+        });
+        assert.equal(saved.status, 201, JSON.stringify(saved.body));
+        assert.equal(saved.body.data.trips.length, 2);
+        const records = await Trip.find({
+          _id: { $in: saved.body.data.trips.map((t) => t._id) },
+        });
+        assert.ok(
+          records.every(
+            (t) =>
+              t.status === "Draft" && t.entries.length === 1 && !t.driverId,
+          ),
+        );
+        assert.equal(records[1].totalHours, 13);
+        const repeat = await uploadRows(rows);
+        const preview = await post(
+          "/imports/" + repeat.body.data.batchId + "/preview",
+          { ...payload, mapping: repeat.body.data.mapping },
+        );
+        assert.equal(preview.body.data.successfulRows, 0);
+        assert.equal(preview.body.data.duplicateRows, 2);
+        assert.equal(
+          (
+            await post("/trips/" + records[0]._id + "/status", {
+              status: "Submitted",
+            })
+          ).status,
+          400,
+        );
+      },
+    );
+    await t.test(
       "Excel preview, confirmation, duplicate prevention",
       async () => {
         const book = XLSX.utils.book_new();
@@ -386,7 +492,11 @@ test(
         assert.equal(preview.body.data.failedRows, 1);
         const confirmed = await post(
           "/imports/" + r.body.data.batchId + "/confirm",
-          { ...payload, confirm: true, expectedTotal: 4750 },
+          {
+            ...payload,
+            confirm: true,
+            reviewToken: preview.body.data.reviewToken,
+          },
         );
         assert.equal(confirmed.status, 201, JSON.stringify(confirmed.body));
         assert.equal((await upload()).status, 409);

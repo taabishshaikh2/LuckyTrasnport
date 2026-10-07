@@ -2,7 +2,10 @@ import { Router } from "express";
 import { Trip, Invoice } from "../models/index.js";
 import { operations } from "../middleware/auth.js";
 import { id } from "../validators/index.js";
-import { tripWorkbook } from "../services/excelExportService.js";
+import {
+  tripWorkbook,
+  importTemplate,
+} from "../services/excelExportService.js";
 import { tripDocx, invoiceDocx } from "../services/docxService.js";
 import { invoicePdf } from "../services/pdfService.js";
 import { invoiceBalance } from "../services/paymentService.js";
@@ -27,11 +30,18 @@ const send = (res, buffer, name, ext) =>
     })
     .send(buffer);
 r.get(
+  "/import-template.xlsx",
+  wrap(async (req, res) =>
+    send(res, importTemplate(), "trip-import-template", "xlsx"),
+  ),
+);
+r.get(
   "/trips.xlsx",
   wrap(async (req, res) => {
     const filter = {};
     for (const key of ["customerId", "vehicleId", "routeId"])
       if (req.query[key]) filter[key] = id.parse(req.query[key]);
+    if (req.query.status) filter.status = String(req.query.status);
     if (req.query.tripId) filter._id = id.parse(req.query.tripId);
     if (req.query.invoiceId) {
       const i = await Invoice.findById(id.parse(req.query.invoiceId));

@@ -2,7 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import crypto from "node:crypto";
 import { z } from "zod";
-import { ImportBatch, Vehicle } from "../models/index.js";
+import { ImportBatch, Vehicle, Trip } from "../models/index.js";
 import { operations } from "../middleware/auth.js";
 import { tripSchema, id } from "../validators/index.js";
 import {
@@ -12,6 +12,8 @@ import {
 } from "../services/excelImportService.js";
 import { previewTrip, createTrip } from "../services/tripService.js";
 import { transaction } from "../services/transactionService.js";
+import { pickupDuty } from "../services/dutyTimeService.js";
+import { money } from "../services/tripCalculationService.js";
 import { wrap, ok, AppError } from "../utils/errors.js";
 const r = Router();
 r.use(operations);
@@ -19,6 +21,11 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
 });
+const hash = (v) => crypto.createHash("sha256").update(v).digest("hex");
+const norm = (v) =>
+  String(v || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
 r.post(
   "/upload",
   upload.single("file"),
@@ -31,25 +38,20 @@ r.post(
     } catch (e) {
       throw new AppError(e.message);
     }
-    const hash = crypto
-      .createHash("sha256")
-      .update(req.file.buffer)
-      .update(parsed.selectedSheet)
-      .digest("hex");
-    let batch = await ImportBatch.findOne({ hash });
+    const digest = hash(
+      Buffer.concat([req.file.buffer, Buffer.from(parsed.selectedSheet)]),
+    );
+    let batch = await ImportBatch.findOne({ hash: digest });
     if (batch) {
       if (batch.confirmed)
-        throw new AppError("This workbook was already imported", 409);
+        throw new AppError("This worksheet was already imported", 409);
       if (String(batch.importedBy) !== String(req.user._id))
-        throw new AppError(
-          "Workbook is already pending review by another user",
-          409,
-        );
+        throw new AppError("Worksheet pending review by another user", 409);
     } else
       batch = await ImportBatch.create({
         ...parsed,
         originalFilename: req.file.originalname,
-        hash,
+        hash: digest,
         importedBy: req.user._id,
         rowCount: parsed.rows.length,
       });
@@ -69,69 +71,227 @@ async function prepare(req, session) {
   for (const v of Object.values(mapping))
     if (v && !batch.headers.includes(v))
       throw new AppError("Unknown mapped column");
-  const input = tripSchema.parse(req.body.header);
-  const vehicle = await Vehicle.findById(input.vehicleId).session(
+  const defaults = req.body.header || {};
+  id.parse(defaults.customerId);
+  id.parse(defaults.routeId);
+  const durationFormat = z
+    .enum(["hoursMinutes", "decimal", "excelTime"])
+    .parse(req.body.durationFormat || "hoursMinutes");
+  const rows = validateRows(batch.rows, mapping, {
+    periodFrom: defaults.periodFrom,
+    periodTo: defaults.periodTo,
+    durationFormat,
+  });
+  const vehicles = await Vehicle.find({ archived: false }).session(
     session || null,
   );
-  if (!vehicle) throw new AppError("Vehicle unavailable");
-  const rows = validateRows(batch.rows, mapping, {
-    ...input,
-    vehicleNumber: vehicle.vehicleNumber,
-  });
-  const valid = rows.filter((x) => x.status !== "Invalid");
-  if (!valid.length) throw new AppError("No valid rows to import");
-  const entries = valid.map((x) => x.data);
-  const header = {
-    ...input,
-    entries,
-    distanceKm: entries.reduce((s, e) => s + e.distanceKm, 0),
-    totalHours: entries.reduce((s, e) => s + e.totalHours, 0),
+  const lookup = new Map(vehicles.map((v) => [norm(v.vehicleNumber), v]));
+  const seen = new Set();
+  for (const row of rows) {
+    if (row.status === "Invalid") continue;
+    const e = row.data;
+    try {
+      const vehicle = e.vehicleNo
+        ? lookup.get(norm(e.vehicleNo))
+        : vehicles.find((v) => String(v._id) === defaults.vehicleId);
+      if (!vehicle)
+        throw new Error(
+          "Vehicle not found. Add it in Vehicles or correct the vehicle number",
+        );
+      e.vehicleNo = vehicle.vehicleNumber;
+      if (e.vehicleType && norm(e.vehicleType) !== norm(vehicle.vehicleType))
+        row.warnings.push(
+          "Sheet vehicle type differs from master; master vehicle type used for rate selection",
+        );
+      if (!e.challanNumber)
+        row.warnings.push("Challan number missing; add it to this draft later");
+      if (!defaults.driverId)
+        row.warnings.push("Driver unassigned; assign before submission");
+      const duty = pickupDuty(e);
+      if (duty) {
+        if (duty.inferred)
+          row.warnings.push(
+            "Closing time is next day; inferred overnight duty",
+          );
+        if (e.totalHours && Math.abs(e.totalHours - duty.totalHours) * 60 > 1)
+          row.warnings.push(
+            "Source total hours differ from pickup-arrival to closing time; calculated duration used",
+          );
+        e.totalHours = duty.totalHours;
+        e.closingDate = duty.closingDate;
+      } else
+        row.warnings.push(
+          "Pickup arrival or closing time missing; source total hours used",
+        );
+      const input = tripSchema.parse({
+        ...defaults,
+        vehicleId: String(vehicle._id),
+        periodFrom: e.date,
+        periodTo: e.date,
+        status: "Draft",
+        entries: [e],
+        totalHours: e.totalHours,
+        distanceKm: e.distanceKm,
+        pickupLocation: e.pickupLocation || defaults.pickupLocation,
+        dropLocation: e.dropLocation || defaults.dropLocation,
+        extraAmount: e.tollParking,
+        deductionAmount: 0,
+        manualAmount: undefined,
+        overrideAmount: undefined,
+        overrideReason: "",
+      });
+      const fingerprint = hash(
+        JSON.stringify(
+          e.challanNumber
+            ? [
+                defaults.customerId,
+                norm(e.challanNumber),
+                norm(e.vehicleNo),
+                e.date,
+              ]
+            : [
+                defaults.customerId,
+                defaults.routeId,
+                e.date,
+                norm(e.vehicleNo),
+                e.openingTime,
+                e.closingTime,
+                e.huNumber,
+              ],
+        ),
+      );
+      if (
+        seen.has(fingerprint) ||
+        (await Trip.exists({ importFingerprint: fingerprint }).session(
+          session || null,
+        ))
+      ) {
+        row.status = "Duplicate";
+        row.warnings.push(
+          "Matching trip already imported or repeated in this worksheet; skipped",
+        );
+        continue;
+      }
+      seen.add(fingerprint);
+      const p = await previewTrip(input, session);
+      row.calculation = p.calculation;
+      row.input = input;
+      row.fingerprint = fingerprint;
+      if (
+        e.perTripHours &&
+        Math.abs(e.perTripHours - p.rate.baseHours) > 0.0001
+      )
+        row.warnings.push(
+          "Source included hours differ from configured rate; configured rule used",
+        );
+      for (const [field, amount, label] of [
+        ["tripCharges", p.calculation.baseAmount, "Trip charge"],
+        ["gtAmount", p.calculation.overtimeAmount, "Overtime amount"],
+        [
+          "totalServiceCharges",
+          p.calculation.totalAmount,
+          "Total service charge",
+        ],
+      ])
+        if (mapping[field] && Math.abs(e[field] - amount) > 0.01)
+          row.warnings.push(
+            label + " differs from source amount (" + e[field] + ")",
+          );
+      if (e.overtimeKm)
+        row.warnings.push(
+          "O.T. IN KM preserved; its charging rule is pending confirmation",
+        );
+      row.status = row.warnings.length ? "Warning" : "Valid";
+    } catch (err) {
+      row.errors.push(err.message);
+      row.status = "Invalid";
+    }
+  }
+  const accepted = rows.filter((x) => ["Valid", "Warning"].includes(x.status));
+  const reviewToken = hash(
+    JSON.stringify(
+      rows.map((x) => ({
+        row: x.rowNumber,
+        status: x.status,
+        input: x.input,
+        calculation: x.calculation,
+        fingerprint: x.fingerprint,
+      })),
+    ),
+  );
+  return {
+    batch,
+    mapping,
+    rows,
+    accepted,
+    reviewToken,
+    calculation: {
+      totalAmount: money(
+        accepted.reduce((s, x) => s + x.calculation.totalAmount, 0),
+      ),
+    },
   };
-  const p = await previewTrip(header, session);
-  return { batch, mapping, rows, header, calculation: p.calculation };
 }
+const response = (p) => ({
+  rows: p.rows.map(({ input, fingerprint, ...row }) => row),
+  calculation: p.calculation,
+  reviewToken: p.reviewToken,
+  successfulRows: p.accepted.length,
+  failedRows: p.rows.filter((x) => x.status === "Invalid").length,
+  duplicateRows: p.rows.filter((x) => x.status === "Duplicate").length,
+});
 r.post(
   "/:id/preview",
-  wrap(async (req, res) => {
-    const p = await prepare(req);
-    ok(res, {
-      rows: p.rows,
-      header: p.header,
-      calculation: p.calculation,
-      successfulRows: p.rows.filter((x) => x.status !== "Invalid").length,
-      failedRows: p.rows.filter((x) => x.status === "Invalid").length,
-    });
-  }),
+  wrap(async (req, res) => ok(res, response(await prepare(req)))),
 );
 r.post(
   "/:id/confirm",
   wrap(async (req, res) => {
     if (req.body.confirm !== true)
-      throw new AppError("Explicit import confirmation required");
+      throw new AppError("Explicit confirmation required");
     const result = await transaction(async (s) => {
       const p = await prepare(req, s);
-      if (req.body.expectedTotal !== p.calculation.totalAmount)
-        throw new AppError("Review a fresh import calculation", 409);
-      const trip = await createTrip(
-        { ...p.header, expectedTotal: p.calculation.totalAmount },
-        req.user,
-        s,
-        "Excel Import",
-      );
+      if (!p.accepted.length)
+        throw new AppError("No new valid trips to import");
+      if (req.body.reviewToken !== p.reviewToken)
+        throw new AppError(
+          "Import data or rates changed. Review a fresh preview",
+          409,
+        );
+      const trips = [];
+      for (const row of p.accepted) {
+        const trip = await createTrip(
+          {
+            ...row.input,
+            expectedTotal: row.calculation.totalAmount,
+            importFingerprint: row.fingerprint,
+            importSource: {
+              batchId: p.batch._id,
+              filename: p.batch.originalFilename,
+              sheetName: p.batch.selectedSheet,
+              rowNumber: row.rowNumber,
+            },
+          },
+          req.user,
+          s,
+          "Excel Import",
+        );
+        trips.push({
+          _id: trip._id,
+          tripId: trip.tripId,
+          rowNumber: row.rowNumber,
+        });
+      }
       Object.assign(p.batch, {
         mapping: p.mapping,
         confirmed: true,
         importedAt: new Date(),
-        successfulRows: p.header.entries.length,
-        failedRows: p.rows.length - p.header.entries.length,
-        tripId: trip._id,
+        successfulRows: trips.length,
+        failedRows: p.rows.length - trips.length,
+        tripIds: trips.map((t) => t._id),
       });
       await p.batch.save({ session: s });
-      return {
-        trip,
-        successfulRows: p.batch.successfulRows,
-        failedRows: p.batch.failedRows,
-      };
+      return { ...response(p), trips };
     });
     ok(res, result, 201);
   }),

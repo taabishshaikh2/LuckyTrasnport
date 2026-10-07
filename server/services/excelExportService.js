@@ -1,27 +1,61 @@
 import XLSX from "xlsx";
+export const columns = [
+  ["Sr No", "srNo"],
+  ["Date", "date"],
+  ["Challan Number", "challanNumber"],
+  ["Vehicle No", "vehicleNo"],
+  ["CHA Name", "chaName"],
+  ["Vehicle Type", "vehicleType"],
+  ["HU No", "huNumber"],
+  ["Origin", "pickupLocation"],
+  ["Destination", "dropLocation"],
+  ["Opening Time", "openingTime"],
+  ["MRB Arrival Time", "mrbArrivalTime"],
+  ["Closing Time", "closingTime"],
+  ["Closing Date", "closingDate"],
+  ["Per Trip Hrs", "perTripHours"],
+  ["Total Hrs", "totalHours"],
+  ["O.T. In Hrs", "gtInHours"],
+  ["O.T. In KM", "overtimeKm"],
+  ["Trip Charges", "tripCharges"],
+  ["OT Amount", "gtAmount"],
+  ["Toll And Parking", "tollParking"],
+  ["Total SVC Charges", "totalServiceCharges"],
+  ["KM", "distanceKm"],
+  ["Billing Group", "billingGroup"],
+  ["Remarks", "remarks"],
+];
+const duration = (v) => {
+  const m = Math.round(Number(v || 0) * 60);
+  return Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0");
+};
+function bookBuffer(rows, name) {
+  const sheet = XLSX.utils.aoa_to_sheet(rows);
+  sheet["!cols"] = rows[0].map(() => ({ wch: 22 }));
+  sheet["!autofilter"] = {
+    ref: XLSX.utils.encode_range({
+      s: { r: 0, c: 0 },
+      e: { r: Math.max(0, rows.length - 1), c: rows[0].length - 1 },
+    }),
+  };
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, sheet, name);
+  return XLSX.write(book, { type: "buffer", bookType: "xlsx" });
+}
+export function importTemplate() {
+  return bookBuffer([columns.map((x) => x[0])], "Trips");
+}
 export async function tripWorkbook(trips) {
-  const headings = [
-    "Trip ID",
-    "Date",
-    "Customer",
-    "Vehicle",
-    "CHA name",
-    "Vehicle type",
-    "Pickup",
-    "Drop",
-    "Opening",
-    "MRB arrival",
-    "Closing",
-    "Trip hours",
-    "Total hours",
-    "G.T hours",
-    "G.T amount",
-    "KM",
-    "Trip total (once)",
-  ];
   const rows = [
-    ["Lucky Transport Services — Operational Trip Sheet"],
-    headings,
+    [
+      ...columns.map((x) => x[0]),
+      "Trip ID",
+      "Customer",
+      "Status",
+      "Calculated Base Amount",
+      "Calculated OT Amount",
+      "Calculated Total",
+    ],
   ];
   for (const t of trips) {
     const entries = t.entries.length
@@ -33,52 +67,30 @@ export async function tripWorkbook(trips) {
             distanceKm: t.distanceKm,
           },
         ];
-    entries.forEach((e, i) =>
+    entries.forEach((e, i) => {
+      const v = {
+        ...e,
+        vehicleNo: e.vehicleNo || t.vehicleNumber,
+        vehicleType: e.vehicleType || t.vehicleType,
+        pickupLocation: e.pickupLocation || t.pickupLocation,
+        dropLocation: e.dropLocation || t.dropLocation,
+      };
       rows.push([
+        ...columns.map(([_, key]) =>
+          key === "date"
+            ? new Date(v.date).toISOString().slice(0, 10)
+            : ["perTripHours", "totalHours", "gtInHours"].includes(key)
+              ? duration(v[key])
+              : (v[key] ?? ""),
+        ),
         t.tripId,
-        new Date(e.date),
         t.customerId?.companyName || "",
-        e.vehicleNo || t.vehicleNumber,
-        e.chaName || "",
-        e.vehicleType || t.vehicleType,
-        e.pickupLocation || t.pickupLocation,
-        e.dropLocation || t.dropLocation,
-        e.openingTime || "",
-        e.mrbArrivalTime || "",
-        e.closingTime || "",
-        e.perTripHours || 0,
-        e.totalHours || 0,
-        e.gtInHours || 0,
-        e.gtAmount || 0,
-        e.distanceKm || 0,
-        i === 0 ? t.totalAmount : null,
-      ]),
-    );
+        t.status,
+        i === 0 ? t.baseAmount : "",
+        i === 0 ? t.overtimeAmount : "",
+        i === 0 ? t.totalAmount : "",
+      ]);
+    });
   }
-  const lastDataRow = rows.length;
-  rows.push([
-    "TOTAL",
-    ...Array(15).fill(null),
-    trips.reduce((sum, t) => sum + t.totalAmount, 0),
-  ]);
-  const sheet = XLSX.utils.aoa_to_sheet(rows, { cellDates: true });
-  sheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 16 } }];
-  sheet["!cols"] = headings.map((_, i) => ({
-    wch: [2, 4, 6, 7].includes(i) ? 28 : i === 16 ? 22 : 17,
-  }));
-  sheet["!autofilter"] = { ref: "A2:Q" + lastDataRow };
-  for (let r = 2; r < lastDataRow; r++) {
-    const date = sheet[XLSX.utils.encode_cell({ r, c: 1 })];
-    if (date) date.z = "dd mmm yyyy";
-    for (const c of [14, 16]) {
-      const cell = sheet[XLSX.utils.encode_cell({ r, c })];
-      if (cell) cell.z = '"INR "#,##0.00';
-    }
-  }
-  const total = sheet["Q" + rows.length];
-  total.z = '"INR "#,##0.00';
-  if (lastDataRow >= 3) total.f = "SUM(Q3:Q" + lastDataRow + ")";
-  const book = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(book, sheet, "Trip sheet");
-  return XLSX.write(book, { type: "buffer", bookType: "xlsx" });
+  return bookBuffer(rows, "Trips");
 }

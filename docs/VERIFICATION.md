@@ -12,7 +12,7 @@ Implemented source, October 7, 2026. This is a working Phase 1 implementation wi
 
 ## External completion steps
 
-1. Supply real challan, rate chart, workbook and invoice examples. Validate the provisional grouping, duty-hours/GT interpretation, rate application and templates against known company cases.
+1. Obtain the original Excel workbooks and remaining owner answers. Photo references are supplied; validate the import and provisional billing rules against actual company files.
 2. Configure company identifiers, banking, tax choices and commercial clauses. Tax percentages deliberately require user entry and confirmation.
 3. Create Atlas and Render resources, configure exact CORS origins and environment secrets, and verify the health endpoint and database indexes.
 4. Provision a production administrator: set temporary process variables BOOTSTRAP_USERNAME, BOOTSTRAP_PASSWORD (12+ characters), optional BOOTSTRAP_NAME and MONGODB_URI; run `npm run bootstrap --workspace server`. Clear the password variables. The bootstrap refuses to run when an active administrator exists. Never seed sample users or rates into production.
@@ -20,7 +20,7 @@ Implemented source, October 7, 2026. This is a working Phase 1 implementation wi
 
 ## Known Phase 1 constraints
 
-One import worksheet creates one header trip. Mixed vehicles/customers must be split beforehand. Aggregate imported duty/distance drives a single selected rate rule; no inference of daily billing is made. Source GT amounts do not affect charges without explicit adjustments. Overnight time inference and the real challan formulas await the company source documents. Display and export currently cap at 2,000 records; add server pagination for larger datasets. Excel formatting uses clear headings, widths, ISO-derived dates, currency formats, filters and total formula, without a reproduction of the unprovided company sheet. Company configuration is editable by Admin in Settings and persisted as a singleton MongoDB profile. Managers can read it. Environment values provide initial defaults; each invoice retains its original profile snapshot. Financial revision/credit workflows and cancellations with received payments are intentionally blocked. No Phase 2 modules were built.
+Each valid import row creates one draft trip, including mixed vehicles. Each upload shares one customer/route default; different customer/route groups need separate uploads. Dates select configured effective-dated rates. Full sheet columns, source amounts, table detection, duration formats, pickup arrival calculation, overnight warnings, duplicate rows and overlapping files are supported. Billing-group pass allocation and final overtime/VVR rules await owner confirmation. Display/export cap at 2,000 records; large-batch performance and exact printed-layout acceptance remain pending. Company configuration is editable by Admin in Settings and persisted as a singleton MongoDB profile. Managers can read it. Environment values provide initial defaults; each invoice retains its original profile snapshot. Financial revision/credit workflows and cancellations with received payments are intentionally blocked. No Phase 2 modules were built.
 
 ## Repeat verification
 

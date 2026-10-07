@@ -100,6 +100,14 @@ export const Rate = make("Rate", {
 });
 const entry = new Schema(
   {
+    challanNumber: String,
+    huNumber: String,
+    billingGroup: String,
+    closingDate: String,
+    overtimeKm: Number,
+    tripCharges: Number,
+    tollParking: Number,
+    totalServiceCharges: Number,
     srNo: Number,
     date: Date,
     vehicleNo: String,
@@ -157,13 +165,24 @@ export const Trip = make(
     operationalCompleted: { type: Boolean, default: false },
     notes: String,
     source: String,
+    importFingerprint: String,
+    importSource: Schema.Types.Mixed,
     manualAmount: Number,
     overrideAmount: Number,
     overrideReason: String,
     createdBy: ref("User"),
     updatedBy: ref("User"),
   },
-  (s) => s.index({ periodFrom: 1, status: 1, customerId: 1 }),
+  (s) => {
+    s.index({ periodFrom: 1, status: 1, customerId: 1 });
+    s.index(
+      { importFingerprint: 1 },
+      {
+        unique: true,
+        partialFilterExpression: { importFingerprint: { $type: "string" } },
+      },
+    );
+  },
 );
 export const Invoice = make(
   "Invoice",
@@ -243,6 +262,9 @@ export const ImportBatch = make("ImportBatch", {
   successfulRows: Number,
   failedRows: Number,
   tripId: ref("Trip"),
+  tripIds: [ref("Trip")],
+  selectedSheet: String,
+  sheetNames: [String],
   confirmed: { type: Boolean, default: false },
 });
 export const Audit = make("Audit", {

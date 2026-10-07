@@ -97,7 +97,12 @@ r.patch(
         throw new AppError("Only draft trips can be edited");
       const originalId = old.tripId;
       const previous = old.toObject();
-      const replacement = await createTrip(input, req.user, s);
+      const replacement = await createTrip(
+        input,
+        req.user,
+        s,
+        old.source || "Manual",
+      );
       await Trip.deleteOne({ _id: replacement._id }).session(s);
       const data = replacement.toObject();
       delete data._id;
@@ -155,6 +160,8 @@ r.post(
       if (input.status === "Cancelled" && !input.reason?.trim())
         throw new AppError("Cancellation requires a reason");
       if (input.status === "Submitted") {
+        if (!t.driverId)
+          throw new AppError("Assign a driver before submitting the trip");
         for (const [M, ref] of [
           [Vehicle, t.vehicleId],
           [Driver, t.driverId],

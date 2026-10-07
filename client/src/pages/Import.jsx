@@ -1,12 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, message } from "../api/client";
+import { api, message, download } from "../api/client";
 import { Field, Calculation } from "../components/UI";
-import {
-  AssignmentFields,
-  DutyFields,
-  initialTrip,
-} from "../features/TripForm";
+import { AssignmentFields, initialTrip } from "../features/TripForm";
 export default function Import() {
   const nav = useNavigate(),
     [file, setFile] = useState(null),
@@ -16,7 +12,9 @@ export default function Import() {
     [preview, setPreview] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [sheetName, setSheetName] = useState("");
+    [sheetName, setSheetName] = useState(""),
+    [durationFormat, setDurationFormat] = useState("hoursMinutes"),
+    [result, setResult] = useState(null);
   function change(k, v) {
     setHeader((x) => ({ ...x, [k]: v }));
     setPreview(null);
@@ -30,6 +28,17 @@ export default function Import() {
       form.append("file", file);
       if (sheetName) form.append("sheetName", sheetName);
       const r = (await api.post("/imports/upload", form)).data.data;
+      const dates = r.rows
+        .map((row) => row[r.mapping.date])
+        .filter((v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v))
+        .sort();
+      if (dates.length)
+        setHeader((h) => ({
+          ...h,
+          periodFrom: dates[0],
+          periodTo: dates[dates.length - 1],
+        }));
+      setResult(null);
       setBatch(r);
       setMapping(r.mapping);
       setPreview(null);
@@ -43,7 +52,7 @@ export default function Import() {
     const p = { ...header };
     for (const k of ["manualAmount", "overrideAmount"])
       if (p[k] === "" || p[k] == null) delete p[k];
-    return { header: p, mapping };
+    return { header: p, mapping, durationFormat };
   };
   async function review() {
     setBusy(true);
@@ -66,10 +75,12 @@ export default function Import() {
         await api.post("/imports/" + batch.batchId + "/confirm", {
           ...payload(),
           confirm: true,
-          expectedTotal: preview.calculation.totalAmount,
+          reviewToken: preview.reviewToken,
         })
       ).data.data;
-      nav("/trips/" + r.trip._id);
+      setResult(r);
+      setPreview(null);
+      setBatch(null);
     } catch (e) {
       setError(message(e));
     } finally {
@@ -81,9 +92,50 @@ export default function Import() {
       <p className="eyebrow">IMPORT WORKFLOW</p>
       <h1>Import Excel challans</h1>
       <p className="muted">
-        Upload → map columns → validate → confirm. One worksheet becomes one
-        trip; choose a matching vehicle and billing period.
+        Upload → map columns → validate → confirm. Each row becomes one separate
+        draft trip; vehicle numbers are matched automatically.
       </p>
+      <button
+        className="quiet"
+        onClick={async () => {
+          try {
+            await download(
+              "/exports/import-template.xlsx",
+              "trip-import-template.xlsx",
+            );
+          } catch (e) {
+            setError(message(e));
+          }
+        }}
+      >
+        Download import template
+      </button>
+      {result && (
+        <section className="card">
+          <h2>{result.trips.length} draft trips imported</h2>
+          <p>
+            {result.failedRows} invalid rows · {result.duplicateRows} duplicates
+            skipped. No invoice created.
+          </p>
+          <button onClick={() => nav("/trips")}>View trips</button>
+          <button
+            className="quiet"
+            onClick={() => {
+              const blob = new Blob([JSON.stringify(result, null, 2)], {
+                type: "application/json",
+              });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "import-results.json";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            Download results
+          </button>
+        </section>
+      )}
       {error && <p className="error">{error}</p>}
       <form className="card" onSubmit={upload}>
         <label className="field">
@@ -124,14 +176,49 @@ export default function Import() {
               />
             ))}
           </div>
-          <h2>2. Trip assignment & charge basis</h2>
+          <h2>2. Default assignment</h2>
+          <Field
+            name="durationFormat"
+            label="How are duration cells stored?"
+            options={[
+              {
+                value: "hoursMinutes",
+                label: "Hours.minutes — 8.30 means 8h 30m",
+              },
+              { value: "decimal", label: "Decimal hours — 8.5 means 8h 30m" },
+              {
+                value: "excelTime",
+                label: "Excel time cells / fractions of a day",
+              },
+            ]}
+            value={durationFormat}
+            onChange={(_, v) => {
+              setDurationFormat(v);
+              setPreview(null);
+            }}
+          />
           <div className="card form-grid">
-            <AssignmentFields value={header} onChange={change} />
-            <DutyFields value={header} onChange={change} />
+            <AssignmentFields value={header} onChange={change} importing />
+            <Field
+              name="periodFrom"
+              label="Import period from"
+              type="date"
+              value={header.periodFrom}
+              onChange={change}
+            />
+            <Field
+              name="periodTo"
+              label="Import period to"
+              type="date"
+              value={header.periodTo}
+              onChange={change}
+            />
           </div>
           <p>
-            Imported row distance and total duty hours are summed. Header
-            adjustments apply once to the complete trip.
+            Select the customer, route and optional default driver for this
+            worksheet. Opening time must mean pickup arrival. Each row uses its
+            own date, vehicle and duration. Toll/parking is added per row;
+            monthly passes are not added here.
           </p>
           <button disabled={busy} onClick={review}>
             Validate & preview
@@ -147,7 +234,12 @@ export default function Import() {
             {preview.rows.filter((r) => r.status === "Warning").length} rows
             with warnings
           </p>
-          <Calculation value={preview.calculation} />
+          <p>
+            Total of new draft trips: ₹{preview.calculation.totalAmount} ·{" "}
+            {preview.duplicateRows} duplicate rows skipped. Charges use
+            configured rates and rounding; review warnings while business rules
+            are being confirmed.
+          </p>
           {preview.rows.map((r) => (
             <section className="card" key={r.rowNumber}>
               <div className="row">
@@ -160,6 +252,7 @@ export default function Import() {
                 {r.data.vehicleNo} · {r.data.chaName} · {r.data.totalHours}{" "}
                 hours · {r.data.distanceKm} KM
               </p>
+              {r.calculation && <Calculation value={r.calculation} />}
               {r.errors.map((e) => (
                 <p key={e} className="error">
                   {e}
@@ -172,7 +265,11 @@ export default function Import() {
               ))}
             </section>
           ))}
-          <button className="wide" disabled={busy} onClick={confirm}>
+          <button
+            className="wide"
+            disabled={busy || !preview.successfulRows}
+            onClick={confirm}
+          >
             Confirm import of {preview.successfulRows} valid / warning rows
           </button>
         </>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useData } from "../hooks/useData";
 import { api, message } from "../api/client";
 import { Field, Calculation, today } from "../components/UI";
+import { SheetFields } from "./SheetFields";
 export const initialTrip = () => ({
   customerId: "",
   routeId: "",
@@ -11,13 +12,13 @@ export const initialTrip = () => ({
   periodFrom: today(),
   periodTo: today(),
   distanceKm: 0,
-  totalHours: 12,
+  totalHours: 0,
   extraAmount: 0,
   deductionAmount: 0,
   status: "Draft",
   entries: [],
 });
-export function AssignmentFields({ value, onChange }) {
+export function AssignmentFields({ value, onChange, importing = false }) {
   const customers = useData("/masters/customers"),
     routes = useData("/masters/routes"),
     vehicles = useData("/masters/vehicles"),
@@ -47,8 +48,12 @@ export function AssignmentFields({ value, onChange }) {
       />
       <Field
         name="vehicleId"
-        label="Vehicle"
-        required
+        label={
+          importing
+            ? "Fallback vehicle (when sheet has no vehicle number)"
+            : "Vehicle"
+        }
+        required={!importing}
         options={(vehicles.data || []).map((c) => ({
           value: c._id,
           label: c.vehicleNumber + " · " + c.vehicleType,
@@ -58,8 +63,7 @@ export function AssignmentFields({ value, onChange }) {
       />
       <Field
         name="driverId"
-        label="Driver"
-        required
+        label="Driver (optional for drafts)"
         options={(drivers.data || []).map((c) => ({
           value: c._id,
           label: c.fullName,
@@ -112,8 +116,12 @@ export default function TripForm({ existing, onClose }) {
             ...existing,
             customerId: existing.customerId?._id,
             vehicleId: existing.vehicleId?._id,
-            driverId: existing.driverId?._id,
+            driverId: existing.driverId?._id || "",
             routeId: existing.routeId?._id,
+            entries: existing.entries.map((e) => ({
+              ...e,
+              date: String(e.date).slice(0, 10),
+            })),
             periodFrom: String(existing.periodFrom).slice(0, 10),
             periodTo: String(existing.periodTo).slice(0, 10),
           }
@@ -189,7 +197,27 @@ export default function TripForm({ existing, onClose }) {
         {step === 0 ? (
           <AssignmentFields value={value} onChange={change} />
         ) : step === 1 ? (
-          <DutyFields value={value} onChange={change} />
+          <>
+            <DutyFields value={value} onChange={change} />
+            <h2>Trip-sheet columns</h2>
+            <p>
+              Opening time is pickup arrival. With opening and closing times,
+              duty hours are calculated automatically. Otherwise enter decimal
+              duty hours above. Source amounts are kept for reference.
+            </p>
+            <SheetFields
+              entry={value.entries[0]}
+              onChange={(k, v) =>
+                change("entries", [
+                  {
+                    ...(value.entries[0] || {}),
+                    date: value.periodFrom,
+                    [k]: v,
+                  },
+                ])
+              }
+            />
+          </>
         ) : (
           <>
             <Calculation value={preview} />

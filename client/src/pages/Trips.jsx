@@ -11,13 +11,15 @@ import {
   Field,
   today,
 } from "../components/UI";
+import { SheetFields, SheetSummary } from "../features/SheetFields";
 import TripForm from "../features/TripForm";
 export function TripList({ user }) {
   const records = useData("/trips"),
     [search, setSearch] = useState(""),
     [status, setStatus] = useState(""),
     [from, setFrom] = useState(""),
-    [to, setTo] = useState("");
+    [to, setTo] = useState(""),
+    [exportError, setExportError] = useState("");
   return (
     <>
       <div className="page-head">
@@ -68,6 +70,27 @@ export function TripList({ user }) {
           onChange={(e) => setTo(e.target.value)}
         />
       </div>
+      {user.role !== "DRIVER" && (
+        <div className="actions">
+          <Link className="button quiet" to="/import">
+            Bulk import
+          </Link>
+          <button
+            className="quiet"
+            onClick={async () => {
+              try {
+                const q = new URLSearchParams({ from, to, status });
+                await download("/exports/trips.xlsx?" + q, "trips.xlsx");
+              } catch (e) {
+                setExportError(message(e));
+              }
+            }}
+          >
+            Export Excel (date / status filters)
+          </button>
+        </div>
+      )}
+      {exportError && <p className="error">{exportError}</p>}
       <State {...records}>
         <div className="card-grid">
           {records.data
@@ -81,9 +104,11 @@ export function TripList({ user }) {
                 (!to || t.periodFrom.slice(0, 10) <= to),
             )
             .map((t) => (
-              <Link className="card record" key={t._id} to={"/trips/" + t._id}>
+              <article className="card record" key={t._id}>
                 <div className="row">
-                  <span className="record-id">{t.tripId}</span>
+                  <Link className="record-id" to={"/trips/" + t._id}>
+                    {t.tripId}
+                  </Link>
                   <Badge>{t.status}</Badge>
                 </div>
                 <h3>
@@ -92,11 +117,17 @@ export function TripList({ user }) {
                 <p>
                   {t.customerId?.companyName} · {t.vehicleNumber}
                 </p>
+                {t.entries?.[0] && (
+                  <details onClick={(e) => e.stopPropagation()}>
+                    <summary>Trip-sheet columns</summary>
+                    <SheetSummary entry={t.entries[0]} />
+                  </details>
+                )}
                 <div className="row">
                   <span>{date(t.periodFrom)}</span>
                   <strong>{currency(t.totalAmount)}</strong>
                 </div>
-              </Link>
+              </article>
             ))}
         </div>
         {records.data?.length === 0 && (
@@ -148,7 +179,7 @@ export function TripDetail({ user }) {
         ...t,
         customerId: t.customerId._id,
         vehicleId: t.vehicleId._id,
-        driverId: t.driverId._id,
+        driverId: t.driverId?._id || "",
         routeId: t.routeId._id,
         periodFrom: t.periodFrom.slice(0, 10),
         periodTo: t.periodTo.slice(0, 10),
@@ -285,6 +316,7 @@ export function TripDetail({ user }) {
                     {e.closingTime || "—"} · {e.totalHours} hours ·{" "}
                     {e.distanceKm} KM
                   </p>
+                  <SheetSummary entry={e} />
                 </section>
               ))
             )}
@@ -304,29 +336,23 @@ export function TripDetail({ user }) {
                   </p>
                   {entries.map((e, i) => (
                     <div className="card form-grid" key={i}>
-                      {[
-                        ["date", "Date", "date"],
-                        ["vehicleNo", "Vehicle", "text"],
-                        ["chaName", "CHA name", "text"],
-                        ["openingTime", "Opening time", "time"],
-                        ["mrbArrivalTime", "MRB arrival", "time"],
-                        ["closingTime", "Closing time", "time"],
-                        ["perTripHours", "Trip hours", "number"],
-                        ["totalHours", "Total hours", "number"],
-                        ["gtInHours", "G.T hours", "number"],
-                        ["gtAmount", "G.T amount", "number"],
-                        ["distanceKm", "KM", "number"],
-                        ["remarks", "Remarks", "text"],
-                      ].map(([name, label, type]) => (
-                        <Field
-                          key={name}
-                          name={name}
-                          label={label}
-                          type={type}
-                          value={e[name]}
-                          onChange={(k, v) => changeEntry(i, k, v)}
-                        />
-                      ))}
+                      <Field
+                        name="date"
+                        label="Date"
+                        type="date"
+                        value={e.date}
+                        onChange={(k, v) => changeEntry(i, k, v)}
+                      />
+                      <Field
+                        name="vehicleNo"
+                        label="Vehicle number"
+                        value={e.vehicleNo}
+                        onChange={(k, v) => changeEntry(i, k, v)}
+                      />
+                      <SheetFields
+                        entry={e}
+                        onChange={(k, v) => changeEntry(i, k, v)}
+                      />
                       <button
                         className="danger"
                         onClick={() =>
