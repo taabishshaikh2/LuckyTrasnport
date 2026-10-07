@@ -57,6 +57,11 @@ r.get(
       .populate("customerId", "companyName")
       .sort({ periodFrom: 1 })
       .limit(2000);
+    if (!trips.length)
+      throw new AppError(
+        "No trips match the selected filters. Create or import trips before exporting.",
+        404,
+      );
     send(res, await tripWorkbook(trips), "lucky-trip-sheet", "xlsx");
   }),
 );

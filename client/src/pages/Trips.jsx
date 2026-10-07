@@ -19,7 +19,14 @@ export function TripList({ user }) {
     [status, setStatus] = useState(""),
     [from, setFrom] = useState(""),
     [to, setTo] = useState(""),
-    [exportError, setExportError] = useState("");
+    [exportError, setExportError] = useState(""),
+    [exporting, setExporting] = useState(false);
+  const exportableTrips = (records.data || []).filter(
+    (t) =>
+      (!status || t.status === status) &&
+      (!from || t.periodFrom.slice(0, 10) >= from) &&
+      (!to || t.periodFrom.slice(0, 10) <= to),
+  );
   return (
     <>
       <div className="page-head">
@@ -77,16 +84,31 @@ export function TripList({ user }) {
           </Link>
           <button
             className="quiet"
+            disabled={
+              records.loading ||
+              !!records.error ||
+              exporting ||
+              !exportableTrips.length
+            }
+            title={
+              !exportableTrips.length
+                ? "No trips match the date / status filters"
+                : "Download matching trips"
+            }
             onClick={async () => {
+              setExporting(true);
+              setExportError("");
               try {
                 const q = new URLSearchParams({ from, to, status });
                 await download("/exports/trips.xlsx?" + q, "trips.xlsx");
               } catch (e) {
                 setExportError(message(e));
+              } finally {
+                setExporting(false);
               }
             }}
           >
-            Export Excel (date / status filters)
+            {exporting ? "Exporting…" : "Export Excel (date / status filters)"}
           </button>
         </div>
       )}

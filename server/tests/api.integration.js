@@ -90,6 +90,16 @@ test(
       assert.equal((await post("/masters/routes", {}, manager)).status, 403);
     });
     await t.test(
+      "empty trip exports return a message while templates remain available",
+      async () => {
+        const empty = await get("/exports/trips.xlsx");
+        assert.equal(empty.status, 404);
+        assert.match(empty.body.message, /No trips match/);
+        assert.equal(empty.headers["content-disposition"], undefined);
+        assert.equal((await get("/exports/import-template.xlsx")).status, 200);
+      },
+    );
+    await t.test(
       "company profile permissions, validation and persistence",
       async () => {
         const original = await get("/settings");
@@ -334,6 +344,9 @@ test(
       },
     );
     await t.test("authenticated binary downloads", async () => {
+      const empty = await get("/exports/trips.xlsx?from=2099-01-01");
+      assert.equal(empty.status, 404);
+      assert.equal(empty.headers["content-disposition"], undefined);
       for (const suffix of ["pdf", "docx"]) {
         const r = await get("/exports/invoices/" + invoice._id + "." + suffix);
         assert.equal(r.status, 200, JSON.stringify(r.body));

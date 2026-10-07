@@ -24,7 +24,19 @@ export const message = (e) =>
       e.response.data.errors.map((x) => x.field + ": " + x.message).join("; ")
     : "");
 export async function download(url, name) {
-  const { data } = await api.get(url, { responseType: "blob" });
+  let data;
+  try {
+    ({ data } = await api.get(url, { responseType: "blob" }));
+  } catch (e) {
+    if (e.response?.data instanceof Blob) {
+      try {
+        e.response.data = JSON.parse(await e.response.data.text());
+      } catch {
+        /* Keep the original error for non-JSON responses. */
+      }
+    }
+    throw e;
+  }
   const objectUrl = URL.createObjectURL(new Blob([data]));
   const a = document.createElement("a");
   a.href = objectUrl;
