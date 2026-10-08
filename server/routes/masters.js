@@ -16,7 +16,7 @@ import { transaction } from "../services/transactionService.js";
 import { wrap, ok, AppError } from "../utils/errors.js";
 const r = Router();
 const meta = {
-  tripRates:["rateId","TRATE-"],
+  fleetManagers:["managerId","FM-"], tripRates:["rateId","TRATE-"],
   agreements: ["agreementId", "AGR-"], fleetRates:["rateId","FLEET-"], fuelCharges:["chargeId","FUEL-"], vehicleExpenses:["chargeId","EXP-"], airportExpenses:["chargeId","AIR-"],
   vehicles: ["vehicleId", "V"],
   drivers: ["driverId", "D"],
@@ -106,14 +106,14 @@ r.get(
   }),
 );
 const permission = (req, res, next) =>
-  ["routes", "rates", "agreements", "fleetRates", "tripRates"].includes(req.entity)
+  ["routes", "rates", "agreements", "fleetRates", "tripRates", "fleetManagers"].includes(req.entity)
     ? admin(req, res, next)
     : operations(req, res, next);
 async function references(entity, v, session) {
-  if (["fleetRates","fuelCharges","vehicleExpenses","airportExpenses"].includes(entity)) {
+  if (["fleetRates","fuelCharges","vehicleExpenses","airportExpenses","fleetManagers"].includes(entity)) {
     if (!await masters.customers.exists({_id:v.customerId,archived:false}).session(session)) throw new AppError("Customer unavailable");
     await masters.customers.updateOne({_id:v.customerId},{$inc:{referenceVersion:1}},{session});
-    if (entity!=="fleetRates" && !await masters.vehicles.exists({_id:v.vehicleId,archived:false}).session(session)) throw new AppError("Vehicle unavailable");
+    if (!["fleetRates","fleetManagers"].includes(entity) && !await masters.vehicles.exists({_id:v.vehicleId,archived:false}).session(session)) throw new AppError("Vehicle unavailable");
     if (["fleetRates","fuelCharges"].includes(entity)) {
       const start=entity==="fleetRates" ? "effectiveFrom" : "periodFrom",end=entity==="fleetRates" ? "effectiveTo" : "periodTo";
       const filter={archived:false,customerId:v.customerId,site:v.site,...(v._id?{_id:{$ne:v._id}}:{}),

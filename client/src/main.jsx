@@ -81,9 +81,9 @@ function Login({ onLogin }) {
           </p>
         )}
         <button className="wide" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
+          {busy ? "Signing inâ€¦" : "Sign in"}
         </button>
-        <p className="muted">Lucky Transport Services · Mumbai</p>
+        <p className="muted">Lucky Transport Services  /  Mumbai</p>
       </form>
     </div>
   );
@@ -105,7 +105,7 @@ function App() {
         .finally(() => setLoading(false));
     return () => window.removeEventListener("session-expired", logout);
   }, []);
-  if (loading) return <div className="state">Opening workspace…</div>;
+  if (loading) return <div className="state">Opening workspaceâ€¦</div>;
   if (!user) return <Login onLogin={setUser} />;
   const ops = user.role !== "DRIVER";
   return (
@@ -123,7 +123,7 @@ function App() {
               "drivers",
               "customers",
               "routes",
-              "fleetRates", "fuelCharges", "vehicleExpenses", "airportExpenses",
+              "fleetManagers", "fleetRates", "fuelCharges", "vehicleExpenses", "airportExpenses",
               "agreements",
               ...(user.role === "ADMIN" ? ["users"] : []),
             ].map((entity) => (

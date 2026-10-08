@@ -32,6 +32,7 @@ export const Vehicle = make("Vehicle", {
   vehicleNumber: { type: String, unique: true, required: true },
   vehicleType: String,
   customVehicleType: String,
+  shiftHours:Number, branded:{type:Boolean,default:false},
   capacity: String,
   status: { type: String, default: "Active" },
   notes: String,
@@ -44,6 +45,14 @@ export const Agreement = make("Agreement", {
   fuelRate: Number, amcRate: Number, serviceRate: Number, overtimeRate: Number,
   managementMonthly: Number, parkingMonthly: Number, airportEntryRate: Number,
   airportTaxable: { type: Boolean, default: false }, active: { type: Boolean, default: true }, notes: String,
+});
+export const FleetManager = make("FleetManager", {
+  ...common,managerId:{type:String,unique:true},name:String,customerId:ref("Customer"),site:String,
+  monthlySalary:Number,active:{type:Boolean,default:true},notes:String,
+});
+export const ShiftSettings = make("ShiftSettings", {
+  _id:{type:String,default:"shifts"},entries:[{_id:false,hours:Number,monthlyKm:Number}],
+  referenceVersion:{type:Number,default:0},archived:{type:Boolean,default:false},updatedBy:ref("User"),
 });
 export const TripRate = make("TripRate", {
   ...common, rateId:{type:String,unique:true}, vehicleType:{type:String,required:true},
@@ -320,7 +329,7 @@ export const Audit = make("Audit", {
   changedBy: ref("User"),
 });
 export const masters = {
-  tripRates: TripRate, agreements: Agreement, fleetRates: FleetRate, fuelCharges: FuelCharge, vehicleExpenses: VehicleExpense, airportExpenses: AirportExpense,
+  fleetManagers: FleetManager, tripRates: TripRate, agreements: Agreement, fleetRates: FleetRate, fuelCharges: FuelCharge, vehicleExpenses: VehicleExpense, airportExpenses: AirportExpense,
   vehicles: Vehicle,
   drivers: Driver,
   customers: Customer,

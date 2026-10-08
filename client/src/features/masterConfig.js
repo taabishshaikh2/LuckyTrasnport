@@ -1,197 +1,396 @@
 import { today } from "../components/UI";
+
 import { sites } from "../../../shared/sites.js";
+
 const f = (name, label, type = "text", options) => ({
+
   name,
+
   label,
+
   type,
+
   options,
+
 });
+
 const status = (options) => f("status", "Status", "text", options);
+
 const notes = f("notes", "Notes", "textarea");
+
 export const config = {
+  fleetManagers:{title:"Fleet managers",label:"name",id:"managerId",defaults:{monthlySalary:0,active:true},fields:[f("name","Manager name"),f("customerId","Billing customer"),f("site","Site","text",sites),f("monthlySalary","Salary per month","number"),f("active","Active","checkbox"),notes]},
+
   tripRates:{title:"Trip rate chart",label:"vehicleType",id:"rateId",defaults:{upTo50:0,upTo150:0,above150:0,overtimeRate:0,active:true},
-    fields:[f("vehicleType","Vehicle type"),f("upTo50","0–50 KM charge","number"),f("upTo150","Above 50–150 KM charge","number"),
+
+    fields:[f("vehicleType","Vehicle type"),f("upTo50","0-50 KM charge","number"),f("upTo150","Above 50-150 KM charge","number"),
+
       f("above150","Above 150 KM rate per KM","number"),f("overtimeRate","Additional hour cost","number"),f("active","Active","checkbox")]},
+
   fleetRates: {
+
     title:"Monthly rates",label:"name",id:"rateId",
+
     defaults:{shiftHours:8,fixedRate:0,serviceRate:0,amcRate:0,effectiveFrom:today(),active:true},
+
     fields:[f("name","Rate name"),f("customerId","Billing customer"),f("site","Site","text",sites),f("vehicleType","Vehicle type"),
-      f("shiftHours","Assigned shift hours","text",["8","16","24"]),f("fixedRate","Fixed rate per KM","number"),
+
+      f("shiftHours","Shift hours"),f("fixedRate","Fixed rate per KM","number"),
+
       f("serviceRate","Additional services rate per 8-hour shift","number"),f("amcRate","AMC per KM (optional)","number"),
+
       f("effectiveFrom","Valid from","date"),f("effectiveTo","Valid until (optional)","date"),f("active","Active","checkbox")],
+
   },
+
   fuelCharges: {
+
     title:"Vehicle fuel charges",label:"name",id:"chargeId",
+
     defaults:{name:"Fuel rate",periodFrom:today().slice(0,7)+"-01",periodTo:today(),fuelType:"Diesel",mileage:7,fuelRate:0},
+
     fields:[f("name","Description"),f("vehicleId","Vehicle"),f("customerId","Billing customer"),f("site","Site","text",sites),
+
       f("periodFrom","Period from","date"),f("periodTo","Period to","date"),f("mileage","Mileage (KM per litre / KG)","number"),
+
       f("fuelRate","Current fuel rate per litre / KG","number"),f("fuelType","Fuel type","text",["Diesel","CNG","Petrol"])],
+
   },
+
   vehicleExpenses: {
+
     title:"Toll, entry & parking",label:"name",id:"chargeId",defaults:{date:today(),category:"Parking",quantity:1,rate:0},
+
     fields:[f("name","Description"),f("vehicleId","Vehicle"),f("customerId","Billing customer"),f("site","Site","text",sites),
+
       f("date","Charge date","date"),f("category","Charge type","text",["Toll","Entry","Parking"]),
+
       f("quantity","Number of tokens / quantity","number"),f("rate","Rate per token / quantity","number")],
+
   },
+
   airportExpenses: {
+
     title:"Airport entry reimbursement",label:"name",id:"chargeId",defaults:{name:"Airport entry",date:today(),quantity:1,rate:0},
+
     fields:[f("name","Description"),f("vehicleId","Vehicle"),f("customerId","Billing customer"),f("site","Site","text",sites),
+
       f("date","Entry date","date"),f("quantity","Number of entry tokens","number"),f("rate","Fee per token","number")],
+
   },
+
   agreements: {
+
     title:"Vehicle shifts", label:"name", id:"agreementId",
+
     defaults:{shiftHours:8,fixedKm:3000,fixedRate:0,mileage:1,fuelType:"Diesel",contractYear:1,active:true,effectiveFrom:today()},
+
     fields:[f("name","Shift name"),f("vehicleId","Vehicle"),f("customerId","Billing customer"),f("site","Site","text",sites),
-      f("shiftHours","Assigned shift hours","text",["8","16","24"]),f("fleetRateId","Rate chart"),
+
+      f("shiftHours","Shift hours"),f("fleetRateId","Rate chart"),
+
       f("effectiveFrom","Assigned from","date"),f("effectiveTo","Assigned until (optional)","date"),f("active","Active","checkbox")],
+
   },
+
   vehicles: {
+
     title: "Vehicles",
+
     label: "vehicleNumber",
+
     id: "vehicleId",
+
     defaults: { vehicleType: "17 FT", status: "Active" },
+
     fields: [
+
       f("vehicleNumber", "Vehicle number"),
+      f("branded","Branded vehicle","checkbox"),f("shiftHours","Assigned shift (save once)"),
+
       f("vehicleType", "Vehicle type", "text", [
+
         "8 FT",
+
         "9 FT",
+
         "14 FT",
+
         "17 FT",
+
         "20 FT",
+
         "Custom",
+
       ]),
+
       f("customVehicleType", "Custom type"),
+
       f("capacity", "Capacity"),
+
       status(["Active", "Maintenance", "Inactive"]),
+
       notes,
+
     ],
+
   },
+
   drivers: {
+
     title: "Drivers",
+
     label: "fullName",
+
     id: "driverId",
+
     defaults: { status: "Active" },
+
     fields: [
+
       f("fullName", "Full name"),
+
       f("phone", "Phone", "tel"),
+
       f("licenseNumber", "Licence number"),
+
       f("licenseExpiry", "Licence expiry", "date"),
+
       f("age", "Age", "number"),
+
       f("experienceYears", "Experience years", "number"),
+
       f("address", "Address", "textarea"),
+
       f("assignedVehicleId", "Assigned vehicle"),
+
       status(["Active", "On Leave", "Inactive"]),
+
       notes,
+
     ],
+
   },
+
   customers: {
+
     title: "Customers",
+
     label: "companyName",
+
     id: "customerId",
+
     defaults: {
+
       stateCode: "27",
+
       state: "Maharashtra",
+
       creditDays: 30,
+
       openingBalance: 0,
+
       active: true,
+
     },
+
     fields: [
+
       f("companyName", "Company name"),
+
       f("contactPerson", "Contact person"),
+
       f("phone", "Phone", "tel"),
+
       f("email", "Email", "email"),
+
       f("address", "Address", "textarea"),
+
       f("city", "City"),
+
       f("state", "State"),
+
       f("stateCode", "State code"),
+
       f("gstin", "GSTIN"),
+
       f("dhlGstin", "DHL GSTIN"),
+
       f("creditDays", "Credit days", "number"),
+
       f("openingBalance", "Opening balance", "number"),
+
       f("active", "Active", "checkbox"),
+
       notes,
+
     ],
+
   },
+
   routes: {
+
     title: "Routes & locations",
+
     label: "routeName",
+
     id: "routeId",
+
     defaults: { category: "Regular", active: true, order: 0 },
+
     fields: [
+
       f("routeName", "Route name"),
+
       f("pickupLocation", "Pickup"),
+
       f("dropLocation", "Drop"),
+
       f("category", "Category", "text", [
+
         "Inbound",
+
         "Outbound",
+
         "Regular",
+
         "Special",
+
       ]),
+
       f("order", "Display order", "number"),
+
       f("active", "Active", "checkbox"),
+
       notes,
+
     ],
+
   },
+
   rates: {
+
     title: "Rate chart",
+
     label: "vehicleType",
+
     id: "rateId",
+
     defaults: {
+
       minKm: 0,
+
       maxKm: 50,
+
       baseHours: 8,
+
       baseRate: 0,
+
       perKmRate: 0,
+
       perHourRate: 0,
+
       overtimeRate: 0,
+
       billingMethod: "Fixed + Overtime",
+
       effectiveFrom: "2026-01-01",
+
       active: true,
+
       minExclusive: false,
+
     },
+
     fields: [
+
       f("routeId", "Route"),
+
       f("vehicleType", "Vehicle type", "text", [
+
         "8 FT",
+
         "9 FT",
+
         "14 FT",
+
         "17 FT",
+
         "20 FT",
+
         "Custom",
+
       ]),
+
       f("minKm", "Minimum KM", "number"),
+
       f("maxKm", "Maximum KM (blank = unlimited)", "number"),
+
       f("minExclusive", "Exclude minimum boundary", "checkbox"),
+
       f("baseHours", "Included duty hours", "number"),
+
       f("baseRate", "Base rate", "number"),
+
       f("perKmRate", "Per KM rate", "number"),
+
       f("perHourRate", "Per hour rate", "number"),
+
       f("overtimeRate", "Overtime per hour", "number"),
+
       f("billingMethod", "Billing method", "text", [
+
         "Fixed Trip Rate",
+
         "Per KM",
+
         "Per Hour",
+
         "Fixed + Overtime",
+
         "Mutually Agreed / Manual",
+
       ]),
+
       f("effectiveFrom", "Effective from", "date"),
+
       f("effectiveTo", "Effective to", "date"),
+
       f("active", "Active", "checkbox"),
+
       notes,
+
     ],
+
   },
+
   users: {
+
     title: "User management",
+
     label: "name",
+
     id: "username",
+
     defaults: { active: true, role: "MANAGER" },
+
     fields: [
+
       f("name", "Name"),
+
       f("username", "Username"),
+
       f("password", "Password (blank preserves current)", "password"),
+
       f("role", "Role", "text", ["ADMIN", "MANAGER", "DRIVER"]),
+
       f("driverId", "Driver record"),
+
       f("active", "Active", "checkbox"),
+
     ],
+
   },
+
 };
+

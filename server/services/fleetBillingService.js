@@ -1,3 +1,4 @@
+import {prepareFixed} from "./fixedInvoiceService.js";
 import { tripChargeTotal } from "./distanceRateService.js";
 import { simpleFleetLines } from "./simpleFleetBillingService.js";
 import Decimal from "decimal.js";
@@ -38,6 +39,7 @@ export async function prepareFleet(input, session) {
   const from=new Date(input.periodFrom), to=new Date(input.periodTo);
   if (input.periodFrom.slice(0,7)!==input.periodTo.slice(0,7)) throw new AppError("Use one calendar month or a date range within that month for fleet billing");
   if ((to-from)/86400000 > 366) throw new AppError("Select a billing period of at most one year");
+  if(input.billingType === "Fixed" && (input.managerIds.length || await Vehicle.exists({_id:{$in:input.vehicleIds},branded:true} ).session(session || null))) return prepareFixed(input,session);
   const trips=await Trip.find({customerId:input.customerId,site:input.site,dutyKind:"Branded",vehicleId:{$in:input.vehicleIds},
     status:{$in:["Approved","Completed","Invoiced"]}, periodFrom:{$gte:from},periodTo:{$lte:to},
   }).session(session || null).sort({periodFrom:1}).lean();

@@ -1,3 +1,5 @@
+import { ShiftSettings, Audit } from "./models/index.js";
+import { getShiftSettings, shiftSettingsSchema } from "./services/shiftSettingsService.js";
 import "./config/env.js";
 import express from "express";
 import cors from "cors";
@@ -59,6 +61,16 @@ app.get("/api/health", (req, res) => {
 });
 app.use("/api/auth", authRoutes);
 app.use("/api", auth);
+app.get("/api/settings/shifts",operations,wrap(async(req,res)=>ok(res,await getShiftSettings())));
+app.put("/api/settings/shifts",admin,wrap(async(req,res)=>{
+  const input=shiftSettingsSchema.parse(req.body);
+  const saved=await transaction(async(session)=>{
+    const previous=await getShiftSettings(session);
+    const record=await ShiftSettings.findOneAndUpdate({_id:"shifts"},{$set:{...input,updatedBy:req.user._id},$inc:{referenceVersion:1}},{upsert:true,new:true,session});
+    await Audit.create([{entity:"ShiftSettings",previousValue:previous,newValue:input,reason:"Shift allowances updated",changedBy:req.user._id}],{session});
+    return record;
+  });ok(res,saved);
+}));
 app.get(
   "/api/settings",
   operations,

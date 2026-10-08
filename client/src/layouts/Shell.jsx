@@ -27,7 +27,7 @@ export const moreItems = [
   ["/drivers", "Drivers", Users],
   ["/customers", "Customers", Contact],
   ["/rates", "Rate chart", BookOpen],
-  ["/agreements", "Vehicle shifts", BookOpen],
+  ["/fleetManagers", "Fleet managers", BookOpen],
   ["/fuelCharges", "Fuel charges", Wallet],
   ["/vehicleExpenses", "Toll, entry & parking", Wallet],
   ["/airportExpenses", "Airport reimbursement", Wallet],
@@ -49,7 +49,7 @@ export function More({ user, logout }) {
               <Link key={url} className="card menu-link" to={url}>
                 <Icon size={22} />
                 {title}
-                <span>→</span>
+                <span> to </span>
               </Link>
             ))}
         <button className="card menu-link" onClick={logout}>
@@ -118,7 +118,7 @@ export default function Shell({ user, logout }) {
           <Outlet />
         </main>
         <footer className="app-footer">
-          Lucky Transport Services · Mumbai
+          Lucky Transport Services  /  Mumbai
         </footer>
       </div>
       <nav className="bottom-nav">

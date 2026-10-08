@@ -45,9 +45,10 @@ export const methods = [
   "Mutually Agreed / Manual",
 ];
 export const masterSchemas = {
+  fleetManagers:z.object({name:required,customerId:id,site,monthlySalary:num.positive(),active:z.boolean().default(true),notes:optional}),
   tripRates:z.object({vehicleType:required,upTo50:num,upTo150:num,above150:num,overtimeRate:num,active:z.boolean().default(true)}),
   fleetRates: z.object({name:required,customerId:id,site,vehicleType:required,
-    shiftHours:z.coerce.number().refine(v=>[8,16,24].includes(v)),fixedRate:num.positive(),serviceRate:n,amcRate:n,
+    shiftHours:num.positive().max(168),fixedRate:num.positive(),serviceRate:n,amcRate:n,
     effectiveFrom:date,effectiveTo:optDate,active:z.boolean().default(true),notes:optional,
   }).refine(v=>!v.effectiveTo || v.effectiveTo>=v.effectiveFrom,"Effective end must follow start"),
   fuelCharges: z.object({name:required,vehicleId:id,customerId:id,site,periodFrom:date,periodTo:date,
@@ -72,6 +73,7 @@ export const masterSchemas = {
     ),
     vehicleType: required,
     customVehicleType: optional,
+    shiftHours:z.union([num.positive().max(168),z.literal("")]).optional().transform(v=>v===""?undefined:v), branded:z.boolean().default(false),
     capacity: optional,
     status: z
       .enum(["Active", "On Trip", "Maintenance", "Inactive"])
@@ -205,7 +207,7 @@ export const periodChargeSchema = z.object({
   allocationNote: required,
 });
 const vehicleMetrics = z.object({
-  vehicleId: id, distanceKm: num.optional(), fuelRate: num.optional(),
+  vehicleId: id, shiftHours:num.positive().max(168).optional(), distanceKm: num.optional(), fuelRate: num.optional(),
   additionalServices: num.optional(), overtimeHours: num.optional(), airportEntries: num.optional(),
   fuelLitres: num.optional(), extraFuelRate: num.optional(), fixedFraction: num.max(1).optional(),
   parkingFraction: num.max(1).optional(), managementFraction: num.max(1).optional(),
@@ -217,6 +219,7 @@ export const invoiceSchema = z
     billingType: z.enum(["Fixed", "Variable", "Adhoc"]).default("Adhoc"),
     site: site.optional(), periodFrom: optDate, periodTo: optDate,
     vehicleIds: z.array(id).max(100).default([]).refine(v => new Set(v).size === v.length, "Duplicate vehicle selection"),
+    managerIds:z.array(id).max(100).default([]).refine(v=>new Set(v).size===v.length,"Duplicate manager selection"),
     metrics: z.array(vehicleMetrics).max(100).default([]).refine(v => new Set(v.map(m => m.vehicleId)).size === v.length, "Duplicate vehicle metrics"),
     periodCharges: z.array(periodChargeSchema).max(100).default([]),
     tripIds: z

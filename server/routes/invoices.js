@@ -1,6 +1,6 @@
 import { Router } from "express";
 import Decimal from "decimal.js";
-import { Invoice, Trip, Customer, Audit, BillingClaim, Agreement, FleetRate, FuelCharge, VehicleExpense, AirportExpense } from "../models/index.js";
+import { Invoice, Trip, Customer, Audit, BillingClaim, Agreement, Vehicle, FleetManager, ShiftSettings, FleetRate, FuelCharge, VehicleExpense, AirportExpense } from "../models/index.js";
 import { operations } from "../middleware/auth.js";
 import { invoiceSchema, paymentSchema, id } from "../validators/index.js";
 import { invoiceNumber } from "../services/sequenceService.js";
@@ -49,7 +49,7 @@ async function prepare(input, session) {
     from=new Date(input.periodFrom || Math.min(...trips.map(t=>+t.periodFrom)));
     to=new Date(input.periodTo || Math.max(...trips.map(t=>+t.periodTo)));
     if (trips.some(t=>t.periodFrom<from || t.periodTo>to)) throw new AppError("Selected trips must fall entirely inside the billing period");
-    lines=trips.map(t=>({description:t.tripId + " — " + t.pickupLocation + " to " + t.dropLocation,
+    lines=trips.map(t=>({description:t.tripId + " - " + t.pickupLocation + " to " + t.dropLocation,
       vehicleId:String(t.vehicleId),vehicleNumber:t.vehicleNumber,quantity:1,rate:t.totalAmount,amount:t.totalAmount,taxable:true,
       baseAmount:t.baseAmount,overtimeHours:t.overtimeHours,overtimeAmount:t.overtimeAmount,tollParking:t.extraAmount}));
     keys=input.tripIds.map(id=>"adhoc:"+id);
@@ -100,10 +100,11 @@ r.post(
         throw new AppError("Invoice inputs or agreements changed. Review again",409);
       await Customer.updateOne({_id:input.customerId},{$inc:{referenceVersion:1}},{session:s});
       for (const vehicle of data.narration.vehicles) {
+        if(!vehicle.agreement._id) continue;
         const touched=await Agreement.updateOne({_id:vehicle.agreement._id,updatedAt:vehicle.agreement.updatedAt},{$inc:{referenceVersion:1}},{session:s});
         if (!touched.modifiedCount) throw new AppError("Agreement changed; review again",409);
       }
-      const sourceModels={FleetRate,FuelCharge,VehicleExpense,AirportExpense};
+      const sourceModels={Vehicle,FleetManager,ShiftSettings,FleetRate,FuelCharge,VehicleExpense,AirportExpense};
       for (const v of data.narration.vehicles) for (const source of v.sources || []) {
         const touched=await sourceModels[source.model].updateOne({_id:source.record._id,updatedAt:source.record.updatedAt,archived:false},{$inc:{referenceVersion:1}},{session:s});
         if (!touched.modifiedCount) throw new AppError("Billing source changed; review again",409);

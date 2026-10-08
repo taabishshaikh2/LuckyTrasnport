@@ -1,3 +1,4 @@
+import ShiftSettings from "../features/ShiftSettings";
 import React, { useEffect, useState } from "react";
 import { useData } from "../hooks/useData";
 import { api, message } from "../api/client";
@@ -86,6 +87,7 @@ export default function Settings({ user }) {
           Only an administrator can edit the company profile.
         </p>
       )}
+      <ShiftSettings user={user}/>
       <State {...r}>
         {draft && (
           <form onSubmit={save}>
@@ -131,7 +133,7 @@ export default function Settings({ user }) {
             {canEdit && (
               <div className="actions sticky-actions">
                 <button disabled={busy}>
-                  {busy ? "Saving…" : "Save company profile"}
+                  {busy ? "Savingâ€¦" : "Save company profile"}
                 </button>
                 <button
                   type="button"
