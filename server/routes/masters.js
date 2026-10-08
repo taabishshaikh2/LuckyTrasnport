@@ -16,7 +16,7 @@ import { transaction } from "../services/transactionService.js";
 import { wrap, ok, AppError } from "../utils/errors.js";
 const r = Router();
 const meta = {
-  agreements: ["agreementId", "AGR-"],
+  agreements: ["agreementId", "AGR-"], fleetRates:["rateId","FLEET-"], fuelCharges:["chargeId","FUEL-"], vehicleExpenses:["chargeId","EXP-"], airportExpenses:["chargeId","AIR-"],
   vehicles: ["vehicleId", "V"],
   drivers: ["driverId", "D"],
   customers: ["customerId", "C"],
@@ -105,11 +105,32 @@ r.get(
   }),
 );
 const permission = (req, res, next) =>
-  ["routes", "rates", "agreements"].includes(req.entity)
+  ["routes", "rates", "agreements", "fleetRates"].includes(req.entity)
     ? admin(req, res, next)
     : operations(req, res, next);
 async function references(entity, v, session) {
+  if (["fleetRates","fuelCharges","vehicleExpenses","airportExpenses"].includes(entity)) {
+    if (!await masters.customers.exists({_id:v.customerId,archived:false}).session(session)) throw new AppError("Customer unavailable");
+    await masters.customers.updateOne({_id:v.customerId},{$inc:{referenceVersion:1}},{session});
+    if (entity!=="fleetRates" && !await masters.vehicles.exists({_id:v.vehicleId,archived:false}).session(session)) throw new AppError("Vehicle unavailable");
+    if (["fleetRates","fuelCharges"].includes(entity)) {
+      const start=entity==="fleetRates" ? "effectiveFrom" : "periodFrom",end=entity==="fleetRates" ? "effectiveTo" : "periodTo";
+      const filter={archived:false,customerId:v.customerId,site:v.site,...(v._id?{_id:{$ne:v._id}}:{}),
+        ...(entity==="fleetRates"?{vehicleType:v.vehicleType,shiftHours:v.shiftHours,active:true}:{vehicleId:v.vehicleId}),
+        [start]:{$lte:v[end] || new Date("9999-12-31")},$or:[{[end]:{$gte:v[start]}},{[end]:null},{[end]:{$exists:false}}]};
+      if (v.active!==false && await masters[entity].exists(filter).session(session)) throw new AppError("Overlapping rate or fuel periods; use separate date ranges");
+    }
+  }
+
   if (entity === "agreements") {
+    if (v.fleetRateId) {
+      const rate=await masters.fleetRates.findOne({_id:v.fleetRateId,archived:false,active:true}).session(session);
+      const vehicle=await masters.vehicles.findById(v.vehicleId).session(session);
+      if (!rate || String(rate.customerId)!==v.customerId || rate.site!==v.site || rate.vehicleType!==vehicle?.vehicleType || rate.shiftHours!==v.shiftHours)
+        throw new AppError("Select a rate for this vehicle type, customer, site and shift");
+      v.fixedKm=({8:3000,16:4000,24:5000})[v.shiftHours]; v.fixedRate=rate.fixedRate;
+    }
+
     for (const [model,key] of [[masters.vehicles,"vehicleId"],[masters.customers,"customerId"]])
       if (!await model.exists({_id:v[key],archived:false}).session(session)) throw new AppError("Agreement reference unavailable");
     await masters.vehicles.updateOne({_id:v.vehicleId},{$inc:{referenceVersion:1}},{session});
@@ -254,6 +275,8 @@ r.delete(
         throw new AppError(
           "Disable dependent rates before archiving the route",
         );
+      const source=await req.Model.findById(req.params.id).session(session);
+      if (source?.customerId) await masters.customers.updateOne({_id:source.customerId},{$inc:{referenceVersion:1}},{session});
       const updated = await req.Model.findByIdAndUpdate(
         req.params.id,
         {

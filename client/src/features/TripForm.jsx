@@ -24,7 +24,8 @@ export function AssignmentFields({ value, onChange, importing = false }) {
   const customers = useData("/masters/customers"),
     routes = useData("/masters/routes"),
     vehicles = useData("/masters/vehicles"),
-    drivers = useData("/masters/drivers");
+    drivers = useData("/masters/drivers"),
+    agreements = useData("/masters/agreements");
   return (
     <>
       <Field name="site" label="Site" required options={sites} value={value.site} onChange={(k,v)=>{
@@ -66,8 +67,9 @@ export function AssignmentFields({ value, onChange, importing = false }) {
           label: c.vehicleNumber + " · " + c.vehicleType,
         }))}
         value={value.vehicleId}
-        onChange={onChange}
+        onChange={(k,v)=>{onChange(k,v);if((agreements.data || []).some(a=>a.vehicleId===v && a.customerId===value.customerId && a.site===value.site && a.active && a.fleetRateId)) onChange("dutyKind","Branded");}}
       />
+      {value.dutyKind === "Branded" && <p>Assigned shift: {(agreements.data || []).find(a=>a.vehicleId===value.vehicleId && a.customerId===value.customerId && a.site===value.site && a.active)?.shiftHours || "Select vehicle shift first"} hours. Monthly extra services are calculated automatically when invoicing.</p>}
       <Field
         name="driverId"
         label="Driver (optional for drafts)"
@@ -102,7 +104,7 @@ export function DutyFields({ value, onChange }) {
         ["overrideAmount", "Override calculated rate", "number"],
         ["overrideReason", "Agreement / override reason", "textarea"],
         ["notes", "Notes", "textarea"],
-      ].map(([name, label, type]) => (
+      ].filter(([name])=>value.dutyKind!=="Branded" || !["extraAmount","deductionAmount","manualAmount","overrideAmount","overrideReason"].includes(name)).map(([name, label, type]) => (
         <Field
           key={name}
           name={name}
@@ -213,7 +215,7 @@ export default function TripForm({ existing, onClose }) {
               Opening time is pickup arrival. With opening and closing times,
               duty hours are calculated automatically. Use a closing date for
               overnight or multi-day duty. One challan is one trip; supporting daily records stay together.
-              Source amounts are kept for comparison.
+              For branded trips, enter the trip charge in SDC CHARGES; invoices use that amount. Record toll, entry and parking on their separate page to avoid counting them twice.
             </p>
             {(value.entries.length ? value.entries : [{date:value.periodFrom}]).map((entry,index)=><section className="card form-grid" key={index}>
               <Field name="date" label="Duty record date" type="date" value={entry.date || value.periodFrom} onChange={(k,v)=>change("entries",(value.entries.length?value.entries:[entry]).map((e,i)=>i===index?{...e,[k]:v}:e))}/>

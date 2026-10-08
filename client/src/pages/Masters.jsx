@@ -11,7 +11,8 @@ export default function Masters({ entity, user }) {
     vehicles = useData("/masters/vehicles"),
     routes = useData("/masters/routes"),
     drivers = useData("/masters/drivers"),
-    customers = useData("/masters/customers");
+    customers = useData("/masters/customers"),
+    fleetRates = useData("/masters/fleetRates");
   const [search, setSearch] = useState(""),
     [filter, setFilter] = useState(""),
     [edit, setEdit] = useState(params.has("new") ? { ...cfg.defaults } : null),
@@ -20,14 +21,15 @@ export default function Masters({ entity, user }) {
     [busy, setBusy] = useState(false),
     [success, setSuccess] = useState("");
   const canEdit =
-    !["rates", "routes", "users", "agreements"].includes(entity) || user.role === "ADMIN";
+    !["rates", "routes", "users", "agreements", "fleetRates"].includes(entity) || user.role === "ADMIN";
   useEffect(() => {
     if (params.has("new")) {
       setEdit({ ...cfg.defaults });
       setParams({}, { replace: true });
     }
   }, [params.toString()]);
-  const change = (k, v) => setEdit((x) => ({ ...x, [k]: v }));
+  const change = (k, v) => setEdit((x) => ({ ...x, [k]: v,
+    ...(entity === "agreements" && ["customerId","site","vehicleId","shiftHours"].includes(k) ? {fleetRateId:""} : {}) }));
   async function save(e) {
     e.preventDefault();
     setBusy(true);
@@ -37,6 +39,7 @@ export default function Masters({ entity, user }) {
       for (const f of cfg.fields)
         if (f.type === "date" && payload[f.name])
           payload[f.name] = String(payload[f.name]).slice(0, 10);
+      if (entity === "agreements" && !payload.fleetRateId) throw new Error("Select a rate chart before saving this shift");
       if (entity === "rates" && payload.maxKm === "") payload.maxKm = null;
       if (entity === "users" && !payload.password) delete payload.password;
       await api[edit._id ? "patch" : "post"](
@@ -67,8 +70,10 @@ export default function Masters({ entity, user }) {
     }
   }
   const optionsFor = (name) =>
+    name === "vehicleType" && entity === "fleetRates" ? [...new Set((vehicles.data || []).map(v=>v.vehicleType))] :
+    name === "fleetRateId" ? fleetRates.data?.filter(r=>r.active && r.customerId===edit?.customerId && r.site===edit?.site && Number(r.shiftHours)===Number(edit?.shiftHours) && r.vehicleType===vehicles.data?.find(v=>v._id===edit?.vehicleId)?.vehicleType).map(r=>({value:r._id,label:r.name})) :
     name === "assignedVehicleId" || name === "vehicleId"
-      ? vehicles.data?.map((v) => ({ value: v._id, label: v.vehicleNumber }))
+      ? vehicles.data?.map((v) => ({ value: v._id, label: v.vehicleNumber+" · "+v.vehicleType }))
       : name === "customerId" ? customers.data?.map(v=>({value:v._id,label:v.companyName}))
       : name === "routeId"
         ? routes.data?.map((v) => ({ value: v._id, label: v.routeName }))
@@ -93,6 +98,11 @@ export default function Masters({ entity, user }) {
           </button>
         )}
       </div>
+      {entity === "agreements" && <p>Select the vehicle and rate chart. Included monthly KM: 8 hours = 3,000; 16 = 4,000; 24 = 5,000. Fuel and expenses have their own pages.</p>}
+      {entity === "fleetRates" && <p>Rates apply by vehicle type, site and assigned shift. Additional services are charged per 8-hour shift, including exact fractions of a shift.</p>}
+      {entity === "fuelCharges" && <p>Select the vehicle and billing period, then enter its mileage and fuel rate. Actual KM comes from approved trip records.</p>}
+      {entity === "vehicleExpenses" && <p>Record each charge once here. These charges are added to the variable invoice for the selected vehicle and dates.</p>}
+      {entity === "airportExpenses" && <p>Airport entry fees are reimbursed after GST. GST is never applied to these records.</p>}
       {success && (
         <p className="success" role="status">
           {success}
@@ -118,7 +128,7 @@ export default function Masters({ entity, user }) {
           <option value="">All statuses</option>
           {[
             ...new Set(
-              records.data?.map((x) => x.status || String(x.active)) || [],
+              records.data?.map((x) => x.status || (x.active == null ? "Recorded" : String(x.active))) || [],
             ),
           ].map((s) => (
             <option key={s}>{s}</option>
@@ -133,7 +143,7 @@ export default function Masters({ entity, user }) {
                 JSON.stringify(x)
                   .toLowerCase()
                   .includes(search.toLowerCase()) &&
-                (!filter || (x.status || String(x.active)) === filter),
+                (!filter || (x.status || (x.active == null ? "Recorded" : String(x.active))) === filter),
             )
             .map((x) => (
               <button
@@ -160,7 +170,7 @@ export default function Masters({ entity, user }) {
                       x.role ||
                       x.city}
                 </p>
-                <Badge>{x.status || (x.active ? "Active" : "Inactive")}</Badge>
+                <Badge>{x.status || (x.active == null ? "Recorded" : x.active ? "Active" : "Inactive")}</Badge>
               </button>
             ))}
         </div>
@@ -218,7 +228,7 @@ export default function Masters({ entity, user }) {
           <form className="modal" onSubmit={save}>
             <div className="page-head">
               <h2>
-                {edit._id ? "Edit" : "Add"} {entity.slice(0, -1)}
+                {edit._id ? "Edit" : "Add"} · {cfg.title}
               </h2>
               <button
                 type="button"
@@ -234,6 +244,7 @@ export default function Masters({ entity, user }) {
                   key={f.name}
                   {...f}
                   required={[
+                    "vehicleId", "customerId", "site", "fleetRateId", "periodFrom", "periodTo", "effectiveFrom", "date",
                     "vehicleNumber",
                     "vehicleType",
                     "fullName",

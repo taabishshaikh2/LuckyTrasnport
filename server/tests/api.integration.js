@@ -561,6 +561,41 @@ test(
       await request(app).patch("/api/masters/agreements/"+agreement.body.data._id).set("Authorization","Bearer "+token).send({...agreementInput,fixedRate:25.75});
       assert.equal((await post("/invoices",{...base,expectedTotal:fresh.body.data.totalAmount,reviewToken:fresh.body.data.reviewToken})).status,409);
     });
+
+    await t.test("simple rate/fuel/expense pages automatically calculate variable and fixed invoices",async()=>{
+      const vehicle=(await post("/masters/vehicles",{vehicleNumber:"MH02FG2797",vehicleType:"TATA 407 LPT"})).body.data;
+      const common={customerId:refs.customers._id,site:"Goregaon"};
+      const rateInput={...common,name:"407 eight-hour rate",vehicleType:vehicle.vehicleType,shiftHours:8,fixedRate:20,serviceRate:1914,amcRate:0,effectiveFrom:"2026-01-01"};
+      assert.equal((await post("/masters/fleetRates",rateInput,manager)).status,403);
+      const rate=await post("/masters/fleetRates",rateInput);assert.equal(rate.status,201,JSON.stringify(rate.body));
+      assert.equal((await post("/masters/fleetRates",rateInput)).status,400);
+      const assignment=await post("/masters/agreements",{...common,name:"407 shift",vehicleId:vehicle._id,fleetRateId:rate.body.data._id,shiftHours:8,effectiveFrom:"2026-01-01"});
+      assert.equal(assignment.status,201,JSON.stringify(assignment.body));assert.equal(assignment.body.data.fixedKm,3000);
+      const fuelInput={...common,name:"June diesel",vehicleId:vehicle._id,periodFrom:"2026-06-01",periodTo:"2026-06-30",mileage:7,fuelRate:98,fuelType:"Diesel"};
+      const fuel=await post("/masters/fuelCharges",fuelInput,manager);assert.equal(fuel.status,201,JSON.stringify(fuel.body));
+      assert.equal((await post("/masters/fuelCharges",fuelInput)).status,400);
+      await Trip.create({...common,tripId:"SIMPLE-QA-001",vehicleId:vehicle._id,vehicleNumber:vehicle.vehicleNumber,vehicleType:vehicle.vehicleType,
+        dutyKind:"Branded",status:"Completed",operationalCompleted:true,periodFrom:"2026-06-01",periodTo:"2026-06-30",distanceKm:700,totalHours:256.5,
+        entries:[{date:"2026-06-01",sdcCharges:1000,tollParking:999,totalHours:256.5}]});
+      const expense={...common,vehicleId:vehicle._id,name:"June parking",date:"2026-06-30",category:"Parking",quantity:1,rate:3000};
+      assert.equal((await post("/masters/vehicleExpenses",expense,manager)).status,201);
+      assert.equal((await post("/masters/vehicleExpenses",{...expense,name:"July excluded",date:"2026-07-01",rate:9000})).status,201);
+      assert.equal((await post("/masters/airportExpenses",{...common,vehicleId:vehicle._id,name:"June tokens",date:"2026-06-30",quantity:4,rate:250},manager)).status,201);
+      const input={...common,billingType:"Variable",vehicleIds:[vehicle._id],periodFrom:"2026-06-01",periodTo:"2026-06-30",invoiceDate:"2026-07-01",dueDate:"2026-08-01",stateCode:"27",placeOfSupply:"Maharashtra",cgstRate:9,sgstRate:9,taxConfirmed:true,roundToRupee:false};
+      const p=await post("/invoices/preview",input);assert.equal(p.status,200,JSON.stringify(p.body));
+      assert.equal(p.body.data.narration.vehicles[0].metrics.additionalServices,6.0625);
+      // 1000 trip + 9800 fuel + 11603.625 extra service + 3000 parking. Source toll is not charged again.
+      assert.equal(p.body.data.baseAmount,25403.63);assert.equal(p.body.data.nonTaxableAmount,1000);
+      assert.equal(p.body.data.cgstAmount,2286.33);assert.equal(p.body.data.totalAmount,30976.29);
+      await request(app).patch("/api/masters/fuelCharges/"+fuel.body.data._id).set("Authorization","Bearer "+token).send({...fuelInput,fuelRate:99});
+      assert.equal((await post("/invoices",{...input,expectedTotal:p.body.data.totalAmount,reviewToken:p.body.data.reviewToken})).status,409);
+      const fresh=await post("/invoices/preview",input);const issued=await post("/invoices",{...input,expectedTotal:fresh.body.data.totalAmount,reviewToken:fresh.body.data.reviewToken});
+      assert.equal(issued.status,201,JSON.stringify(issued.body));assert.equal((await post("/invoices/preview",input)).status,409);
+      const fixed=await post("/invoices/preview",{...input,billingType:"Fixed"});assert.equal(fixed.status,200,JSON.stringify(fixed.body));
+      assert.equal(fixed.body.data.baseAmount,60000);assert.equal(fixed.body.data.totalAmount,70800);assert.equal(fixed.body.data.nonTaxableAmount,0);
+      assert.equal((await get("/exports/invoices/"+issued.body.data._id+".pdf")).status,200);
+      assert.equal((await get("/exports/invoices/"+issued.body.data._id+".docx")).status,200);
+    });
     await t.test("one challan across daily rows imports as one trip, with one base fare",async()=>{
       const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.json_to_sheet([
         {Date:"2026-10-10","Vehicle No":"MH02AB1234","Challan Number":"CONT-001","Opening Time":"12:00","Closing Time":"20:00","AWB NO":"0008",CUSTOMER:"WAYLANE"},

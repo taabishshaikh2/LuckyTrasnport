@@ -49,3 +49,15 @@ test("repeated monthly headers with shifted columns and merged dates are recogni
   assert.equal(p.selectedSheet,"Movements");assert.equal(p.rows.length,3);
   assert.equal(p.rows[1].Date,"2026-06-01");assert.equal(p.rows[2].Date,"2026-07-01");assert.equal(p.rows[2]["Vehicle No"],"MH3");
 });
+
+test("monthly extra duty uses exact minutes for all assigned shifts", async()=>{
+  const {dutyAllowance}=await import("../services/simpleFleetBillingService.js");
+  for (const shift of [8,16,24]) {
+    const value=dutyAllowance(26*shift+48.5,shift,"2026-06-01","2026-06-30");
+    assert.equal(value.includedMinutes,26*shift*60);assert.equal(value.extraMinutes,2910);
+    assert.equal(value.additionalServices,6.0625);
+  }
+  assert.equal(dutyAllowance(200,8,"2026-06-01","2026-06-30").extraMinutes,0);
+  const partial=dutyAllowance(104.5,8,"2026-06-01","2026-06-15");
+  assert.equal(partial.includedDays,13);assert.equal(partial.extraMinutes,30);assert.equal(partial.additionalServices,.0625);
+});

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import Decimal from "decimal.js";
-import { Invoice, Trip, Customer, Audit, BillingClaim, Agreement } from "../models/index.js";
+import { Invoice, Trip, Customer, Audit, BillingClaim, Agreement, FleetRate, FuelCharge, VehicleExpense, AirportExpense } from "../models/index.js";
 import { operations } from "../middleware/auth.js";
 import { invoiceSchema, paymentSchema, id } from "../validators/index.js";
 import { invoiceNumber } from "../services/sequenceService.js";
@@ -102,6 +102,11 @@ r.post(
       for (const vehicle of data.narration.vehicles) {
         const touched=await Agreement.updateOne({_id:vehicle.agreement._id,updatedAt:vehicle.agreement.updatedAt},{$inc:{referenceVersion:1}},{session:s});
         if (!touched.modifiedCount) throw new AppError("Agreement changed; review again",409);
+      }
+      const sourceModels={FleetRate,FuelCharge,VehicleExpense,AirportExpense};
+      for (const v of data.narration.vehicles) for (const source of v.sources || []) {
+        const touched=await sourceModels[source.model].updateOne({_id:source.record._id,updatedAt:source.record.updatedAt,archived:false},{$inc:{referenceVersion:1}},{session:s});
+        if (!touched.modifiedCount) throw new AppError("Billing source changed; review again",409);
       }
       const number = await invoiceNumber(input.invoiceDate, s);
       const [doc] = await Invoice.create(

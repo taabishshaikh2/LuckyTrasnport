@@ -1,3 +1,4 @@
+import { today } from "../components/UI";
 import { sites } from "../../../shared/sites.js";
 const f = (name, label, type = "text", options) => ({
   name,
@@ -8,17 +9,38 @@ const f = (name, label, type = "text", options) => ({
 const status = (options) => f("status", "Status", "text", options);
 const notes = f("notes", "Notes", "textarea");
 export const config = {
+  fleetRates: {
+    title:"Fleet rate chart",label:"name",id:"rateId",
+    defaults:{shiftHours:8,fixedRate:0,serviceRate:0,amcRate:0,effectiveFrom:today(),active:true},
+    fields:[f("name","Rate name"),f("customerId","Billing customer"),f("site","Site","text",sites),f("vehicleType","Vehicle type"),
+      f("shiftHours","Assigned shift hours","text",["8","16","24"]),f("fixedRate","Fixed rate per KM","number"),
+      f("serviceRate","Additional services rate per 8-hour shift","number"),f("amcRate","AMC per KM (optional)","number"),
+      f("effectiveFrom","Valid from","date"),f("effectiveTo","Valid until (optional)","date"),f("active","Active","checkbox")],
+  },
+  fuelCharges: {
+    title:"Vehicle fuel charges",label:"name",id:"chargeId",
+    defaults:{name:"Fuel rate",periodFrom:today().slice(0,7)+"-01",periodTo:today(),fuelType:"Diesel",mileage:7,fuelRate:0},
+    fields:[f("name","Description"),f("vehicleId","Vehicle"),f("customerId","Billing customer"),f("site","Site","text",sites),
+      f("periodFrom","Period from","date"),f("periodTo","Period to","date"),f("mileage","Mileage (KM per litre / KG)","number"),
+      f("fuelRate","Current fuel rate per litre / KG","number"),f("fuelType","Fuel type","text",["Diesel","CNG","Petrol"])],
+  },
+  vehicleExpenses: {
+    title:"Toll, entry & parking",label:"name",id:"chargeId",defaults:{date:today(),category:"Parking",quantity:1,rate:0},
+    fields:[f("name","Description"),f("vehicleId","Vehicle"),f("customerId","Billing customer"),f("site","Site","text",sites),
+      f("date","Charge date","date"),f("category","Charge type","text",["Toll","Entry","Parking"]),
+      f("quantity","Number of tokens / quantity","number"),f("rate","Rate per token / quantity","number")],
+  },
+  airportExpenses: {
+    title:"Airport entry reimbursement",label:"name",id:"chargeId",defaults:{name:"Airport entry",date:today(),quantity:1,rate:0},
+    fields:[f("name","Description"),f("vehicleId","Vehicle"),f("customerId","Billing customer"),f("site","Site","text",sites),
+      f("date","Entry date","date"),f("quantity","Number of entry tokens","number"),f("rate","Fee per token","number")],
+  },
   agreements: {
-    title:"Vehicle agreements", label:"name", id:"agreementId",
-    defaults:{shiftHours:8,fixedKm:3000,fixedRate:0,mileage:1,fuelType:"Diesel",fuelRate:0,amcRate:0,serviceRate:0,overtimeRate:0,managementMonthly:0,parkingMonthly:0,airportEntryRate:0,airportTaxable:false,contractYear:1,active:true},
-    fields:[f("name","Agreement name"),f("vehicleId","Vehicle"),f("customerId","Billing customer"),f("site","Site","text",sites),
-      f("effectiveFrom","Effective from","date"),f("effectiveTo","Effective to","date"),f("deploymentDate","Deployment date","date"),
-      f("contractYear","Vehicle contract year","number"),f("shiftHours","Shift hours","text",["8","16","24"]),
-      f("fixedKm","Contracted monthly KM","number"),f("fixedRate","Fixed rate per KM","number"),f("mileage","Agreed mileage (KM per fuel unit)","number"),
-      f("fuelType","Fuel type","text",["Diesel","CNG","Petrol"]),f("fuelRate","Default fuel rate","number"),
-      f("amcRate","AMC per actual KM","number"),f("serviceRate","Additional service per shift","number"),f("overtimeRate","Additional duty per hour","number"),
-      f("managementMonthly","Monthly management charge for this vehicle","number"),f("parkingMonthly","Monthly parking for this vehicle","number"),
-      f("airportEntryRate","Airport entry per token","number"),f("airportTaxable","Airport entry taxable","checkbox"),f("active","Active","checkbox"),notes],
+    title:"Vehicle shifts", label:"name", id:"agreementId",
+    defaults:{shiftHours:8,fixedKm:3000,fixedRate:0,mileage:1,fuelType:"Diesel",contractYear:1,active:true,effectiveFrom:today()},
+    fields:[f("name","Shift name"),f("vehicleId","Vehicle"),f("customerId","Billing customer"),f("site","Site","text",sites),
+      f("shiftHours","Assigned shift hours","text",["8","16","24"]),f("fleetRateId","Rate chart"),
+      f("effectiveFrom","Assigned from","date"),f("effectiveTo","Assigned until (optional)","date"),f("active","Active","checkbox")],
   },
   vehicles: {
     title: "Vehicles",

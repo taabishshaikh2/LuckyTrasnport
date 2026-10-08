@@ -26,9 +26,11 @@ function DurationField({name,label,value,onChange}) {
   }}/></label>;
 }
 export function SheetFields({entry={},onChange}) {
-  return sheetFields.map(([name,label,type])=>type === "duration" ?
+  const primary=sheetFields.slice(0,14),supporting=sheetFields.slice(14).filter(([name])=>!["additionalServices","airportEntries","fuelLitres"].includes(name));
+  const fields=items=>items.map(([name,label,type])=>type === "duration" ?
     <DurationField key={name} name={name} label={label} value={entry[name]} onChange={onChange}/> :
     <Field key={name} name={name} label={label} type={type} value={entry[name]} onChange={onChange}/>);
+  return <>{fields(primary)}<details className="card" style={{gridColumn:"1 / -1"}}><summary>Challan, KM & supporting details</summary><div className="form-grid">{fields(supporting)}</div></details></>;
 }
 export function SheetSummary({entry={}}) {return <dl>{sheetFields.map(([name,label,type])=><React.Fragment key={name}>
   <dt>{label}</dt><dd>{type === "duration" ? durationText(entry[name]) : entry[name] ?? "—"}</dd>

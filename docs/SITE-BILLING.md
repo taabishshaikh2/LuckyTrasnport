@@ -26,3 +26,11 @@ Supporting agreements, challans, receipts, cash memos and other annexures are at
 ## Validation
 
 Reference checks cover G092 fixed: taxable 386400, payable 455952; G089 variable: taxable 143767, other reimbursement 12750, payable 182395; G101: 287h57m overtime at 200/hour = 57590. Original workbook parsing was exercised across 30 operational worksheets in the three supplied files. Ambiguous 12-hour clock values and mismatches remain visible for review; do not assume they have been resolved by these examples.
+
+
+## Simplified fleet billing
+Use Rate chart → Fixed & variable rates, then assign the vehicle under Vehicle shifts. The shift maps to 3,000/4,000/5,000 monthly KM for 8/16/24 hours.
+Fuel charges stores vehicle mileage and the fuel rate for a dated period. Toll, entry & parking and Airport reimbursement are separate dated expense pages.
+Variable invoices read approved branded trips, sum SDC charges and KM, calculate fuel, and calculate additional services from exact excess duty minutes / 480 × the per-8-hour shift rate. Full-month included duty is 26 × the assigned shift; shorter periods prorate the allowance by calendar days. Negative excess becomes zero.
+Source trip toll columns remain available for import/export but are not billed a second time; record expenses once on the expense page. Airport reimbursements are always non-taxable and added after GST. Fixed invoices contain only contracted KM × rate plus GST. Partial periods prorate contracted KM by calendar days, visible in the review.
+Existing issued invoices keep their snapshots; older agreement data is retained. To use the simplified pages, edit an existing Vehicle shift and select a matching new rate chart.

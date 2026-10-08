@@ -5,6 +5,7 @@ import { Truck } from "lucide-react";
 import { api, message } from "./api/client";
 import Shell, { More } from "./layouts/Shell";
 import Home from "./pages/Home";
+import RateChart from "./pages/RateChart";
 import Masters from "./pages/Masters";
 import { TripList, TripDetail } from "./pages/Trips";
 import TripForm from "./features/TripForm";
@@ -122,7 +123,7 @@ function App() {
               "drivers",
               "customers",
               "routes",
-              "rates",
+              "fleetRates", "fuelCharges", "vehicleExpenses", "airportExpenses",
               "agreements",
               ...(user.role === "ADMIN" ? ["users"] : []),
             ].map((entity) => (
@@ -132,6 +133,7 @@ function App() {
                 element={<Masters key={entity} entity={entity} user={user} />}
               />
             ))}
+            <Route path="rates" element={<RateChart user={user}/>} />
             <Route path="invoices" element={<InvoiceList />} />
             <Route path="invoices/new" element={<InvoiceForm />} />
             <Route path="invoices/:id" element={<InvoiceDetail />} />

@@ -38,12 +38,29 @@ export const Vehicle = make("Vehicle", {
 });
 export const Agreement = make("Agreement", {
   ...common, agreementId: { type: String, unique: true }, name: String,
-  vehicleId: ref("Vehicle"), customerId: ref("Customer"), site: String,
+  vehicleId: ref("Vehicle"), customerId: ref("Customer"), site: String, fleetRateId: ref("FleetRate"),
   effectiveFrom: Date, effectiveTo: Date, deploymentDate: Date, contractYear: Number,
   shiftHours: Number, fixedKm: Number, fixedRate: Number, mileage: Number, fuelType: String,
   fuelRate: Number, amcRate: Number, serviceRate: Number, overtimeRate: Number,
   managementMonthly: Number, parkingMonthly: Number, airportEntryRate: Number,
   airportTaxable: { type: Boolean, default: false }, active: { type: Boolean, default: true }, notes: String,
+});
+export const FleetRate = make("FleetRate", {
+  ...common, rateId: {type:String,unique:true}, name:String, customerId:ref("Customer"), site:String,
+  vehicleType:String, shiftHours:Number, fixedRate:Number, serviceRate:Number, amcRate:Number,
+  effectiveFrom:Date, effectiveTo:Date, active:{type:Boolean,default:true}, notes:String,
+});
+export const FuelCharge = make("FuelCharge", {
+  ...common, chargeId:{type:String,unique:true}, name:String, vehicleId:ref("Vehicle"), customerId:ref("Customer"), site:String,
+  periodFrom:Date, periodTo:Date, mileage:Number, fuelRate:Number, fuelType:String, notes:String,
+});
+export const VehicleExpense = make("VehicleExpense", {
+  ...common, chargeId:{type:String,unique:true}, name:String, vehicleId:ref("Vehicle"), customerId:ref("Customer"), site:String,
+  date:Date, category:String, quantity:Number, rate:Number, notes:String,
+});
+export const AirportExpense = make("AirportExpense", {
+  ...common, chargeId:{type:String,unique:true}, name:String, vehicleId:ref("Vehicle"), customerId:ref("Customer"), site:String,
+  date:Date, quantity:Number, rate:Number, notes:String,
 });
 export const BillingClaim = make("BillingClaim", {
   key: { type: String, unique: true }, invoiceId: ref("Invoice"),
@@ -298,7 +315,7 @@ export const Audit = make("Audit", {
   changedBy: ref("User"),
 });
 export const masters = {
-  agreements: Agreement,
+  agreements: Agreement, fleetRates: FleetRate, fuelCharges: FuelCharge, vehicleExpenses: VehicleExpense, airportExpenses: AirportExpense,
   vehicles: Vehicle,
   drivers: Driver,
   customers: Customer,

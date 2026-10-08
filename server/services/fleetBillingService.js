@@ -1,3 +1,4 @@
+import { simpleFleetLines } from "./simpleFleetBillingService.js";
 import Decimal from "decimal.js";
 import crypto from "node:crypto";
 import { Agreement, Vehicle, Trip, Invoice } from "../models/index.js";
@@ -47,6 +48,12 @@ export async function prepareFleet(input, session) {
     }).session(session || null).lean();
     if (agreements.length !== 1) throw new AppError("Configure one agreement covering the selected period for " + vehicle.vehicleNumber);
     const agreement=agreements[0], records=trips.filter(t=>String(t.vehicleId)===vehicleId);
+    if (agreement.fleetRateId) {
+      const prepared=await simpleFleetLines(input.billingType,agreement,vehicle,records,input,session);
+      lines.push(...prepared.lines);vehicles.push({vehicleId,vehicleNumber:vehicle.vehicleNumber,...prepared,tripCount:records.length});
+      for (let day=+from;day<=+to;day+=86400000) keys.push([input.customerId,input.site,vehicleId,input.billingType,new Date(day).toISOString().slice(0,10)].join(":"));
+      continue;
+    }
     const entries=records.flatMap(t=>t.entries);
     const supplied=input.metrics.find(m=>m.vehicleId===vehicleId) || {};
     if (Object.keys(supplied).some(k=>!["vehicleId","reason"].includes(k)) && !supplied.reason.trim())

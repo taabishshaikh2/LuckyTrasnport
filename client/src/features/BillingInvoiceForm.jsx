@@ -24,9 +24,10 @@ export default function BillingInvoiceForm() {
   const metrics=(vehicleId,k,v)=>{setValue(x=>{const previous=x.metrics.find(m=>m.vehicleId===vehicleId) || {vehicleId,reason:""};
     const next={...previous,[k]:v};if(v==="" && k!=="reason") delete next[k];
     return {...x,metrics:[...x.metrics.filter(m=>m.vehicleId!==vehicleId),next]};});setPreview(null);};
+  const simpleVehicle=id=>(agreements.data || []).some(a=>a.vehicleId===id && a.customerId===value.customerId && a.site===value.site && a.active && a.fleetRateId);
   const periodCharge=(index,k,v)=>change("periodCharges",value.periodCharges.map((c,i)=>i===index?{...c,[k]:v}:c));
   const eligible=(trips.data || []).filter(t=>String(t.customerId?._id)===value.customerId && (!value.site || t.site===value.site) && t.dutyKind!=="Branded" && ["Approved","Completed"].includes(t.status) && t.periodFrom.slice(0,10)>=value.periodFrom && t.periodTo.slice(0,10)<=value.periodTo);
-  const fleet=(vehicles.data || []).filter(v=>(agreements.data || []).some(a=>a.vehicleId===v._id && a.customerId===value.customerId && a.site===value.site && a.active));
+  const fleet=(vehicles.data || []).filter(v=>(agreements.data || []).some(a=>a.vehicleId===v._id && a.customerId===value.customerId && a.site===value.site && a.active && a.fleetRateId));
   async function review(e){e.preventDefault();setBusy(true);setError("");try{setPreview((await api.post("/invoices/preview",{...value,site:value.site || undefined})).data.data);}catch(e){setError(message(e));}finally{setBusy(false);}}
   async function save(){setBusy(true);setError("");try{const r=await api.post("/invoices",{...value,site:value.site || undefined,expectedTotal:preview.totalAmount,reviewToken:preview.reviewToken});nav("/invoices/"+r.data.data._id);}catch(e){setError(message(e));}finally{setBusy(false);}}
   return <><h1>Create invoice</h1><p>Select the site, billing type and period. Review the narration before issuing.</p>
@@ -45,14 +46,15 @@ export default function BillingInvoiceForm() {
       {!eligible.length && <p>No approved adhoc trips match this customer, site and period.</p>}
       {eligible.map(t=><label className="check-row" key={t._id}><input type="checkbox" checked={value.tripIds.includes(t._id)} onChange={e=>change("tripIds",e.target.checked?[...value.tripIds,t._id]:value.tripIds.filter(id=>id!==t._id))}/>
         {t.tripId} · {t.vehicleNumber} · {currency(t.totalAmount)}</label>)}
-    </section> : <section className="card"><h2>Select branded vehicles</h2><p>Configure vehicle agreements in More → Vehicle agreements. For partial periods, explicitly enter each applicable allocation fraction: 0.5 means half, 1 means the full charge.</p>
-      {!fleet.length && <p>No vehicle agreements for this customer and site.</p>}
+    </section> : <section className="card"><h2>Select branded vehicles</h2><p>Assign vehicles under Vehicle shifts, enter fuel rates and record expenses on their separate pages. Charges are calculated automatically for this period. Partial-month fixed KM and included duty are prorated by calendar days.</p>
+      {!fleet.length && <p>No vehicle shifts for this customer and site.</p>}
       {fleet.map(v=>{const m=value.metrics.find(m=>m.vehicleId===v._id) || {};return <div className="card" key={v._id}>
         <label className="check-row"><input type="checkbox" checked={value.vehicleIds.includes(v._id)} onChange={e=>{
           const selected=e.target.checked?[...value.vehicleIds,v._id]:value.vehicleIds.filter(id=>id!==v._id);
           setValue(x=>({...x,vehicleIds:selected,metrics:x.metrics.filter(m=>selected.includes(m.vehicleId))}));setPreview(null);
         }}/>{v.vehicleNumber} · {v.vehicleType}</label>
-        {value.vehicleIds.includes(v._id) && <div className="form-grid">
+        {value.vehicleIds.includes(v._id) && simpleVehicle(v._id) && <p>Rates, approved trips, fuel and dated expenses will be read automatically. Airport reimbursement is outside GST.</p>}
+        {value.vehicleIds.includes(v._id) && !simpleVehicle(v._id) && <div className="form-grid">
           {(value.billingType === "Fixed" ? [["fixedFraction","Fixed charge allocation (0–1)"],["managementFraction","Management allocation (0–1)"]] :
             [["distanceKm","Period KM (blank = duty records)"],["fuelRate","Period fuel rate (blank = agreement)"],["additionalServices","Additional service shifts"],["overtimeHours","Additional duty hours (decimal)"],["airportEntries","Airport entry tokens"],["fuelLitres","Additional fuel litres"],["extraFuelRate","Additional fuel rate"],["parkingFraction","Parking allocation (0–1)"]])
             .map(([name,label])=><Field key={name} name={name} label={label} type="number" value={m[name] ?? ""} onChange={(k,n)=>metrics(v._id,k,n)}/>)}
@@ -60,14 +62,14 @@ export default function BillingInvoiceForm() {
         </div>}
       </div>;})}
     </section>}
-    <section className="card"><h2>Period charges / split allocation</h2><p>Add only this invoice’s share of monthly passes or other charges. Record how it was divided.</p>
+    <details className="card"><summary>Optional adjustments / split allocation</summary><p>Add only this invoice’s share of monthly passes or other charges. Record how it was divided.</p>
       {value.periodCharges.map((c,i)=><div className="card form-grid" key={i}>
         {[["description","Charge description","text"],["amount","Allocated amount","number"],["taxable","Taxable","checkbox"],["allocationNote","Allocation explanation","text"]].map(([name,label,type])=>
           <Field key={name} name={name} label={label} type={type} value={c[name]} onChange={(k,v)=>periodCharge(i,k,v)} required={type!=="checkbox"}/>)}
         <button type="button" className="quiet" onClick={()=>change("periodCharges",value.periodCharges.filter((_,n)=>n!==i))}>Remove charge</button>
       </div>)}
       <button type="button" className="quiet" onClick={()=>change("periodCharges",[...value.periodCharges,{description:"",amount:0,taxable:true,allocationNote:""}])}>+ Add period charge</button>
-    </section>
+    </details>
     <button disabled={busy || !value.taxConfirmed || !(value.billingType === "Adhoc" ? value.tripIds.length : value.vehicleIds.length)}>Calculate narration & review</button></form>
     {preview && <><Narration invoice={preview}/><TaxSummary i={preview}/><button disabled={busy} onClick={save}>Issue invoice</button></>}
   </>;
