@@ -10,9 +10,9 @@ export function siteTripRows(trips) {
       pickupLocation:e.pickupLocation || t.pickupLocation,dropLocation:e.dropLocation || t.dropLocation,
       closingTime:last.closingTime,closingDate:last.closingDate,
       perTripHours:t.baseDutyHours ?? e.perTripHours,totalHours:t.totalHours,gtInHours:t.overtimeHours ?? e.gtInHours,
-      sdcCharges:t.dutyKind === "Branded" ? e.sdcCharges : (t.subtotal ?? (t.totalAmount-t.extraAmount)),
-      tollParking:t.dutyKind === "Branded" ? e.tollParking : t.extraAmount,
-      totalServiceCharges:t.dutyKind === "Branded" ? e.totalServiceCharges : t.totalAmount};
+      sdcCharges:t.dutyKind === "Branded" && t.rateSnapshot?.source !== "TripRate" ? e.sdcCharges : (t.subtotal ?? (t.totalAmount-t.extraAmount)),
+      tollParking:t.dutyKind === "Branded" && t.rateSnapshot?.source !== "TripRate" ? e.tollParking : t.extraAmount,
+      totalServiceCharges:t.dutyKind === "Branded" && t.rateSnapshot?.source !== "TripRate" ? e.totalServiceCharges : t.totalAmount};
   });
 }
 export function siteWorkbook(trips,site,invoice,company) {

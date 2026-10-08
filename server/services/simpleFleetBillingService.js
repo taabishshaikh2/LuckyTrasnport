@@ -1,3 +1,4 @@
+import { tripChargeTotal } from "./distanceRateService.js";
 import Decimal from "decimal.js";
 import { FleetRate,FuelCharge,VehicleExpense,AirportExpense } from "../models/index.js";
 import { AppError } from "../utils/errors.js";
@@ -16,7 +17,7 @@ export async function simpleFleetLines(type,assignment,vehicle,records,input,ses
   if (!rate) throw new AppError("Set a matching rate chart covering the period for "+vehicle.vehicleNumber);
   const sum=values=>values.reduce((n,v)=>n.add(v || 0),new Decimal(0)).toNumber();
   const metrics={...dutyAllowance(sum(records.map(t=>t.totalHours)),assignment.shiftHours,input.periodFrom,input.periodTo),
-    distanceKm:sum(records.map(t=>t.distanceKm)),tripCharges:sum(records.flatMap(t=>t.entries || []).map(e=>e.sdcCharges || e.tripCharges || 0))};
+    distanceKm:sum(records.map(t=>t.distanceKm)),tripCharges:money(tripChargeTotal(records))};
   const lines=[],sources=[{model:"FleetRate",record:rate}];
   const add=(description,quantity,unitRate,taxable=true)=>{
     if (!quantity || !unitRate) return;

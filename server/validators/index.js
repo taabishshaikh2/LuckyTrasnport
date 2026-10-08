@@ -45,6 +45,7 @@ export const methods = [
   "Mutually Agreed / Manual",
 ];
 export const masterSchemas = {
+  tripRates:z.object({vehicleType:required,upTo50:num,upTo150:num,above150:num,overtimeRate:num,active:z.boolean().default(true)}),
   fleetRates: z.object({name:required,customerId:id,site,vehicleType:required,
     shiftHours:z.coerce.number().refine(v=>[8,16,24].includes(v)),fixedRate:num.positive(),serviceRate:n,amcRate:n,
     effectiveFrom:date,effectiveTo:optDate,active:z.boolean().default(true),notes:optional,

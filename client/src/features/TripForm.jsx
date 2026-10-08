@@ -6,7 +6,7 @@ import { Field, Calculation, today } from "../components/UI";
 import { SheetFields } from "./SheetFields";
 import { sites } from "../../../shared/sites.js";
 export const initialTrip = () => ({
-  site: "Inbound", dutyKind:"Adhoc", pickupLocation:"MIDC",dropLocation:"Cargo",
+  site: "Inbound", dutyKind:"Branded", pickupLocation:"MIDC",dropLocation:"Cargo",
   customerId: "",
   routeId: "",
   vehicleId: "",
@@ -215,7 +215,7 @@ export default function TripForm({ existing, onClose }) {
               Opening time is pickup arrival. With opening and closing times,
               duty hours are calculated automatically. Use a closing date for
               overnight or multi-day duty. One challan is one trip; supporting daily records stay together.
-              For branded trips, enter the trip charge in SDC CHARGES; invoices use that amount. Record toll, entry and parking on their separate page to avoid counting them twice.
+              Trip charges and overtime are calculated from the saved rate chart. Enter each toll or parking expense once, here or on the separate expenses page.
             </p>
             {(value.entries.length ? value.entries : [{date:value.periodFrom}]).map((entry,index)=><section className="card form-grid" key={index}>
               <Field name="date" label="Duty record date" type="date" value={entry.date || value.periodFrom} onChange={(k,v)=>change("entries",(value.entries.length?value.entries:[entry]).map((e,i)=>i===index?{...e,[k]:v}:e))}/>

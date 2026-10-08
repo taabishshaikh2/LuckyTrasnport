@@ -155,7 +155,7 @@ async function prepare(req, session) {
         distanceKm: allEntries.reduce((n,s)=>n+s.distanceKm,0),
         pickupLocation: e.pickupLocation || defaults.pickupLocation,
         dropLocation: e.dropLocation || defaults.dropLocation,
-        extraAmount: defaults.dutyKind === "Branded" ? 0 : allEntries.reduce((n,s)=>n+s.tollParking,0),
+        extraAmount: allEntries.reduce((n,s)=>n+s.tollParking,0),
         deductionAmount: 0,
         manualAmount: undefined,
         overrideAmount: undefined,

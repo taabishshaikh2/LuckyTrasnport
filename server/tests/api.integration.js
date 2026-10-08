@@ -613,5 +613,37 @@ test(
       assert.equal(record.totalHours,16);assert.equal(record.baseAmount,4000);assert.equal(record.overtimeAmount,1000);
       assert.equal(record.entries[0].awbNumber,"0008");
     });
+    await t.test("one saved chart prices manual and imported trips, with both monthly invoice types",async()=>{
+      const vehicle=(await post("/masters/vehicles",{vehicleNumber:"MH02QA4070",vehicleType:"Custom",customVehicleType:"QA 407"})).body.data;
+      const common={customerId:refs.customers._id,site:"VVR"};
+      const tripInput={...common,routeId:refs.routes._id,vehicleId:vehicle._id,dutyKind:"Branded",periodFrom:"2026-08-01",periodTo:"2026-08-01",distanceKm:40,totalHours:8.5,
+        entries:[{date:"2026-08-01",openingTime:"03:00",closingTime:"11:30",perTripHours:8,challanNumber:"QA-SAVED-RATE"}]};
+      assert.equal((await post("/trips/preview",tripInput)).status,400);
+      const chart={vehicleType:"QA 407",upTo50:2200,upTo150:3300,above150:18,overtimeRate:200};
+      assert.equal((await post("/masters/tripRates",chart,manager)).status,403);
+      const saved=await post("/masters/tripRates",chart);assert.equal(saved.status,201,JSON.stringify(saved.body));
+      assert.equal((await post("/masters/tripRates",chart)).status,409);
+      const preview=await post("/trips/preview",tripInput);assert.equal(preview.status,200,JSON.stringify(preview.body));
+      assert.equal(preview.body.data.calculation.totalAmount,2300);
+      const made=await post("/trips",{...tripInput,expectedTotal:2300});assert.equal(made.status,201,JSON.stringify(made.body));
+      assert.equal(made.body.data.rateSnapshot.source,"TripRate");
+      await Trip.updateOne({_id:made.body.data._id},{$set:{status:"Completed",operationalCompleted:true}});
+      const monthly=(await post("/masters/fleetRates",{...common,name:"QA monthly",vehicleType:"Custom",shiftHours:8,fixedRate:20,serviceRate:1914,effectiveFrom:"2026-01-01"})).body.data;
+      assert.ok(monthly?._id);
+      assert.equal((await post("/masters/agreements",{...common,name:"QA shift",vehicleId:vehicle._id,fleetRateId:monthly._id,shiftHours:8,effectiveFrom:"2026-01-01"})).status,201);
+      await post("/masters/fuelCharges",{...common,name:"QA fuel",vehicleId:vehicle._id,periodFrom:"2026-08-01",periodTo:"2026-08-31",mileage:10,fuelRate:100,fuelType:"Diesel"});
+      await post("/masters/airportExpenses",{...common,name:"QA entry",vehicleId:vehicle._id,date:"2026-08-01",quantity:1,rate:250});
+      const billing={...common,billingType:"Variable",vehicleIds:[vehicle._id],periodFrom:"2026-08-01",periodTo:"2026-08-31",invoiceDate:"2026-09-01",dueDate:"2026-10-01",placeOfSupply:"Maharashtra",stateCode:"27",cgstRate:9,sgstRate:9,taxConfirmed:true,roundToRupee:false};
+      const variable=await post("/invoices/preview",billing);assert.equal(variable.status,200,JSON.stringify(variable.body));
+      assert.equal(variable.body.data.baseAmount,2700);assert.equal(variable.body.data.nonTaxableAmount,250);assert.equal(variable.body.data.totalAmount,3436);
+      const issued=await post("/invoices",{...billing,expectedTotal:variable.body.data.totalAmount,reviewToken:variable.body.data.reviewToken});assert.equal(issued.status,201,JSON.stringify(issued.body));
+      const fixed=await post("/invoices/preview",{...billing,billingType:"Fixed"});assert.equal(fixed.status,200,JSON.stringify(fixed.body));assert.equal(fixed.body.data.totalAmount,70800);
+      const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.json_to_sheet([{Date:"2026-08-02","Vehicle No":vehicle.vehicleNumber,KM:151,"Total Hours":8.5,"Per Trip Hrs":8,"Challan Number":"QA-IMPORT-RATE"}]),"Trips");
+      const upload=await request(app).post("/api/imports/upload").set("Authorization","Bearer "+token).attach("file",XLSX.write(book,{type:"buffer",bookType:"xlsx"}),"qa-rate.xlsx");
+      const payload={header:{...tripInput,periodTo:"2026-08-31"},mapping:upload.body.data.mapping,durationFormat:"decimal"};
+      const url="/imports/"+upload.body.data.batchId;
+      const imported=await post(url+"/preview",payload);assert.equal(imported.status,200,JSON.stringify(imported.body));assert.equal(imported.body.data.successfulRows,1,JSON.stringify(imported.body));
+      assert.equal(imported.body.data.rows[0].calculation.totalAmount,2818);
+    });
   },
 );

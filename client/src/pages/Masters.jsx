@@ -21,7 +21,7 @@ export default function Masters({ entity, user }) {
     [busy, setBusy] = useState(false),
     [success, setSuccess] = useState("");
   const canEdit =
-    !["rates", "routes", "users", "agreements", "fleetRates"].includes(entity) || user.role === "ADMIN";
+    !["rates", "routes", "users", "agreements", "fleetRates", "tripRates"].includes(entity) || user.role === "ADMIN";
   useEffect(() => {
     if (params.has("new")) {
       setEdit({ ...cfg.defaults });
@@ -70,6 +70,7 @@ export default function Masters({ entity, user }) {
     }
   }
   const optionsFor = (name) =>
+    name === "vehicleType" && entity === "tripRates" ? [...new Set((vehicles.data || []).map(v=>v.vehicleType === "Custom" ? v.customVehicleType || "Custom" : v.vehicleType))] :
     name === "vehicleType" && entity === "fleetRates" ? [...new Set((vehicles.data || []).map(v=>v.vehicleType))] :
     name === "fleetRateId" ? fleetRates.data?.filter(r=>r.active && r.customerId===edit?.customerId && r.site===edit?.site && Number(r.shiftHours)===Number(edit?.shiftHours) && r.vehicleType===vehicles.data?.find(v=>v._id===edit?.vehicleId)?.vehicleType).map(r=>({value:r._id,label:r.name})) :
     name === "assignedVehicleId" || name === "vehicleId"
@@ -98,6 +99,7 @@ export default function Masters({ entity, user }) {
           </button>
         )}
       </div>
+      {entity === "tripRates" && <p>Save once per vehicle type. Trips automatically use the distance band and additional-hour cost. Above 150 KM, the per-KM rate applies to the whole trip distance. Overtime uses exact minutes beyond the trip’s included hours.</p>}
       {entity === "agreements" && <p>Select the vehicle and rate chart. Included monthly KM: 8 hours = 3,000; 16 = 4,000; 24 = 5,000. Fuel and expenses have their own pages.</p>}
       {entity === "fleetRates" && <p>Rates apply by vehicle type, site and assigned shift. Additional services are charged per 8-hour shift, including exact fractions of a shift.</p>}
       {entity === "fuelCharges" && <p>Select the vehicle and billing period, then enter its mileage and fuel rate. Actual KM comes from approved trip records.</p>}
@@ -136,7 +138,8 @@ export default function Masters({ entity, user }) {
         </select>
       </div>
       <State {...records}>
-        <div className="card-grid">
+        {entity === "tripRates" && <div className="sheet-scroll"><table className="trip-sheet"><thead><tr><th>Vehicle type</th><th>0–50 KM</th><th>Above 50–150 KM</th><th>Above 150 KM / KM</th><th>Additional hour cost</th><th>Status</th></tr></thead><tbody>{records.data?.filter(x=>JSON.stringify(x).toLowerCase().includes(search.toLowerCase()) && (!filter || String(x.active)===filter)).map(x=><tr key={x._id}><td><button className="quiet" onClick={()=>setDetail(x)}>{x.vehicleType}</button></td>{["upTo50","upTo150","above150","overtimeRate"].map(k=><td key={k}>{Number(x[k]).toFixed(2)}</td>)}<td>{x.active ? "Active" : "Inactive"}</td></tr>)}</tbody></table></div>}
+        <div className="card-grid" style={entity === "tripRates" ? {display:"none"} : undefined}>
           {records.data
             ?.filter(
               (x) =>

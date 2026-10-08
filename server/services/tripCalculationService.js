@@ -65,6 +65,7 @@ export function calculateTrip(input, rate) {
     default:
       throw new AppError("Unsupported billing method");
   }
+  if (rate.applyOvertime) overtimeHours = Math.max(0, (input.totalHours || 0) - rate.baseHours);
   const overtime = d(overtimeHours).mul(rate.overtimeRate);
   const original = money(base.add(overtime));
   const override = input.overrideAmount != null;

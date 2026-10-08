@@ -8,8 +8,8 @@ export default function TripTable({trips=[]}) {
         customerName:e.customerName || e.chaName || "",pickupLocation:e.pickupLocation || t.pickupLocation,
         dropLocation:e.dropLocation || t.dropLocation,closingTime:last.closingTime,
         perTripHours:t.baseDutyHours ?? e.perTripHours,totalHours:t.totalHours,gtInHours:t.overtimeHours ?? e.gtInHours,
-        sdcCharges:t.dutyKind === "Branded" ? e.sdcCharges : t.subtotal ?? t.totalAmount-t.extraAmount,
-        tollParking:t.dutyKind === "Branded" ? e.tollParking : t.extraAmount,totalServiceCharges:t.dutyKind === "Branded" ? e.totalServiceCharges : t.totalAmount};
+        sdcCharges:t.dutyKind === "Branded" && t.rateSnapshot?.source !== "TripRate" ? e.sdcCharges : t.subtotal ?? t.totalAmount-t.extraAmount,
+        tollParking:t.dutyKind === "Branded" && t.rateSnapshot?.source !== "TripRate" ? e.tollParking : t.extraAmount,totalServiceCharges:t.dutyKind === "Branded" && t.rateSnapshot?.source !== "TripRate" ? e.totalServiceCharges : t.totalAmount};
       return <tr key={t._id}>{siteColumns.map(([,key])=><td key={key}>{key === "srNo" ? <Link to={"/trips/"+t._id}>{i+1}</Link> :
         ["perTripHours","totalHours","gtInHours"].includes(key) ? durationText(row[key]) : row[key] ?? "—"}</td>)}</tr>;
     })}</tbody></table></div>;

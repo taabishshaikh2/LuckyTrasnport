@@ -5,7 +5,7 @@ export const sheetFields=[
   ["srNo","SR.NO","number"],["awbNumber","AWB NO","text"],["customerName","CUSTOMER / CHA","text"],
   ["vehicleType","VEHICLE TYPE","text"],["pickupLocation","ORIGIN","text"],["dropLocation","DESTINATION","text"],
   ["openingTime","OPENING TIME (pickup arrival)","time"],["closingTime","CLOSING TIME","time"],
-  ["perTripHours","PER TRIP HRS","duration"],["totalHours","TOTAL HRS","duration"],["gtInHours","OT IN HRS","duration"],
+  ["perTripHours","PER TRIP HRS (0 = assigned shift, or 8h if unassigned)","duration"],["totalHours","TOTAL HRS","duration"],["gtInHours","OT IN HRS","duration"],
   ["sdcCharges","SDC CHARGES (source)","number"],["tollParking","CASH & FAST TAG TOLL","number"],
   ["totalServiceCharges","TOTAL AMOUNT (source)","number"],
   ["challanNumber","Challan number (one challan = one trip)","text"],["closingDate","Closing date","date"],["huNumber","HU number","text"],
@@ -27,7 +27,8 @@ function DurationField({name,label,value,onChange}) {
 }
 export function SheetFields({entry={},onChange}) {
   const primary=sheetFields.slice(0,14),supporting=sheetFields.slice(14).filter(([name])=>!["additionalServices","airportEntries","fuelLitres"].includes(name));
-  const fields=items=>items.map(([name,label,type])=>type === "duration" ?
+  const fields=items=>items.map(([name,label,type])=>["sdcCharges","totalServiceCharges","gtInHours","tripCharges","gtAmount"].includes(name) ?
+    <label className="field" key={name}><span>{label.replace(" (source)","")} — calculated on review</span><input readOnly value={name === "gtInHours" ? durationText(entry[name]) : entry[name] ?? ""}/></label> : type === "duration" ?
     <DurationField key={name} name={name} label={label} value={entry[name]} onChange={onChange}/> :
     <Field key={name} name={name} label={label} type={type} value={entry[name]} onChange={onChange}/>);
   return <>{fields(primary)}<details className="card" style={{gridColumn:"1 / -1"}}><summary>Challan, KM & supporting details</summary><div className="form-grid">{fields(supporting)}</div></details></>;

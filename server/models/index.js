@@ -45,6 +45,11 @@ export const Agreement = make("Agreement", {
   managementMonthly: Number, parkingMonthly: Number, airportEntryRate: Number,
   airportTaxable: { type: Boolean, default: false }, active: { type: Boolean, default: true }, notes: String,
 });
+export const TripRate = make("TripRate", {
+  ...common, rateId:{type:String,unique:true}, vehicleType:{type:String,required:true},
+  upTo50:Number,upTo150:Number,above150:Number,overtimeRate:Number,
+  active:{type:Boolean,default:true},
+}, s=>s.index({vehicleType:1},{unique:true,partialFilterExpression:{archived:false,active:true}}));
 export const FleetRate = make("FleetRate", {
   ...common, rateId: {type:String,unique:true}, name:String, customerId:ref("Customer"), site:String,
   vehicleType:String, shiftHours:Number, fixedRate:Number, serviceRate:Number, amcRate:Number,
@@ -315,7 +320,7 @@ export const Audit = make("Audit", {
   changedBy: ref("User"),
 });
 export const masters = {
-  agreements: Agreement, fleetRates: FleetRate, fuelCharges: FuelCharge, vehicleExpenses: VehicleExpense, airportExpenses: AirportExpense,
+  tripRates: TripRate, agreements: Agreement, fleetRates: FleetRate, fuelCharges: FuelCharge, vehicleExpenses: VehicleExpense, airportExpenses: AirportExpense,
   vehicles: Vehicle,
   drivers: Driver,
   customers: Customer,

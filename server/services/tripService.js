@@ -1,9 +1,10 @@
+import { distanceRate, vehicleRateType } from "./distanceRateService.js";
 import {
   Vehicle,
   Driver,
   Customer,
   Route,
-  Rate,
+  Rate, TripRate, Agreement,
   Trip,
   Audit,
 } from "../models/index.js";
@@ -19,7 +20,7 @@ export async function previewTrip(input, session) {
     }
   }
   if (input.entries.some(e=>e.closingKm || e.distanceKm)) input.distanceKm=input.entries.reduce((n,e)=>n+(e.distanceKm || 0),0);
-  if (input.entries.some(e=>e.tollParking)) input.extraAmount=input.dutyKind === "Branded" ? 0 : input.entries.reduce((n,e)=>n+(e.tollParking || 0),0);
+  if (input.entries.some(e=>e.tollParking)) input.extraAmount=input.entries.reduce((n,e)=>n+(e.tollParking || 0),0);
   const challans = new Set(input.entries.map(e => e.challanNumber?.trim()).filter(Boolean));
   if (input.site && challans.size > 1) throw new AppError("One challan is one trip. Create separate trips for different challans");
   if (input.entries.length > 1) {
@@ -69,12 +70,13 @@ export async function previewTrip(input, session) {
     null,
     opts,
   ).lean();
-  const rate = input.dutyKind === "Branded" ? {
-    billingMethod: "Fixed Trip Rate", baseRate: 0, baseHours: 0, overtimeRate: 0,
-  } : selectRate(rates, {
-    ...input,
-    vehicleType: vehicle.vehicleType,
-  });
+  const chart = await TripRate.findOne({vehicleType:vehicleRateType(vehicle),active:true,archived:false},null,opts).lean();
+  const assignment = await Agreement.findOne({vehicleId:vehicle._id,customerId:customer._id,site:input.site,active:true,archived:false,
+    effectiveFrom:{$lte:new Date(input.periodFrom)},$or:[{effectiveTo:{$gte:new Date(input.periodTo)}},{effectiveTo:null}]
+  },null,opts).lean();
+  if (!chart && input.dutyKind === "Branded") throw new AppError("Add a trip rate chart for "+vehicleRateType(vehicle)+" before reviewing this trip");
+  const includedHours = input.entries[0]?.perTripHours || assignment?.shiftHours || 8;
+  const rate = chart ? distanceRate(chart,input.distanceKm,includedHours) : selectRate(rates,{...input,vehicleType:vehicle.vehicleType});
   if (
     route.category === "Special" &&
     (!input.pickupLocation || !input.dropLocation)
@@ -107,7 +109,7 @@ export async function createTrip(input, user, session, source = "Manual") {
     [Driver, p.driver],
     [Customer, p.customer],
     [Route, p.route],
-    ...(input.dutyKind === "Branded" ? [] : [[Rate, p.rate]]),
+    [p.rate.source === "TripRate" ? TripRate : Rate, p.rate],
   ]) {
     const [Model, record] = modelAndRecord;
     if (!record) continue;
@@ -137,6 +139,12 @@ export async function createTrip(input, user, session, source = "Manual") {
     await Customer.updateOne({_id:input.customerId},{$inc:{referenceVersion:1}},{session});
   }
   const calc = p.calculation;
+  if (p.rate.source === "TripRate") input.entries = input.entries.map((e,i)=>({...e,
+    sdcCharges:i===0 ? calc.subtotal : 0,tripCharges:i===0 ? calc.baseAmount : 0,
+    gtAmount:i===0 ? calc.overtimeAmount : 0,gtInHours:i===0 ? calc.overtimeHours : 0,
+    totalServiceCharges:i===0 ? calc.totalAmount : 0,
+    ...(i===0 ? {perTripHours:calc.baseDutyHours} : {}),
+  }));
   const tripId = await sequence("trip", "TR-", session);
   const override =
     input.overrideAmount != null ||
@@ -155,7 +163,7 @@ export async function createTrip(input, user, session, source = "Manual") {
         ...input,
         ...calc,
         tripId,
-        vehicleType: p.vehicle.vehicleType,
+        vehicleType: vehicleRateType(p.vehicle),
         vehicleNumber: p.vehicle.vehicleNumber,
         tripType: p.route.category,
         pickupLocation: input.pickupLocation || p.route.pickupLocation,

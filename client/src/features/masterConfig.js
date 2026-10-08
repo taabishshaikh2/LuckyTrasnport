@@ -9,8 +9,11 @@ const f = (name, label, type = "text", options) => ({
 const status = (options) => f("status", "Status", "text", options);
 const notes = f("notes", "Notes", "textarea");
 export const config = {
+  tripRates:{title:"Trip rate chart",label:"vehicleType",id:"rateId",defaults:{upTo50:0,upTo150:0,above150:0,overtimeRate:0,active:true},
+    fields:[f("vehicleType","Vehicle type"),f("upTo50","0–50 KM charge","number"),f("upTo150","Above 50–150 KM charge","number"),
+      f("above150","Above 150 KM rate per KM","number"),f("overtimeRate","Additional hour cost","number"),f("active","Active","checkbox")]},
   fleetRates: {
-    title:"Fleet rate chart",label:"name",id:"rateId",
+    title:"Monthly rates",label:"name",id:"rateId",
     defaults:{shiftHours:8,fixedRate:0,serviceRate:0,amcRate:0,effectiveFrom:today(),active:true},
     fields:[f("name","Rate name"),f("customerId","Billing customer"),f("site","Site","text",sites),f("vehicleType","Vehicle type"),
       f("shiftHours","Assigned shift hours","text",["8","16","24"]),f("fixedRate","Fixed rate per KM","number"),

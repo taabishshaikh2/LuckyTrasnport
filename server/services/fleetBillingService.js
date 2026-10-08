@@ -1,3 +1,4 @@
+import { tripChargeTotal } from "./distanceRateService.js";
 import { simpleFleetLines } from "./simpleFleetBillingService.js";
 import Decimal from "decimal.js";
 import crypto from "node:crypto";
@@ -21,6 +22,7 @@ export function fleetLines(type, agreement, metrics, vehicleNumber) {
     if (!(agreement.mileage > 0)) throw new AppError("Set vehicle mileage before variable billing");
     const fuelRate=metrics.fuelRate ?? agreement.fuelRate;
     if (metrics.distanceKm > 0 && !(fuelRate > 0)) throw new AppError("Enter the period fuel rate");
+    add("Trip charges",1,metrics.tripCharges);
     add("Fuel reimbursement (" + agreement.fuelType + ")", (metrics.distanceKm || 0)/agreement.mileage, fuelRate,true,"rupee");
     add("Additional fuel litres",metrics.fuelLitres,metrics.extraFuelRate,true);
     if (metrics.fuelLitres && !metrics.extraFuelRate) throw new AppError("Enter the additional fuel rate");
@@ -72,7 +74,7 @@ export async function prepareFleet(input, session) {
       const used=issued.reduce((n,i)=>n+(i.narration?.vehicles?.find(v=>v.vehicleId===vehicleId)?.metrics?.[fraction] ?? 1),0);
       if (used+(supplied[fraction] ?? 1)>1.000000001) throw new AppError("Monthly allocation exceeds 100% for " + vehicle.vehicleNumber + " (" + fraction + ")",409);
     }
-    const metrics={distanceKm:exactSum(records.map(t=>t.distanceKm)),additionalServices:exactSum(entries.map(e=>e.additionalServices)),
+    const metrics={tripCharges:money(tripChargeTotal(records)),distanceKm:exactSum(records.map(t=>t.distanceKm)),additionalServices:exactSum(entries.map(e=>e.additionalServices)),
       airportEntries:sum(entries.map(e=>e.airportEntries)),fuelLitres:sum(entries.map(e=>e.fuelLitres)),overtimeHours:0,...supplied};
     if (input.billingType === "Variable" && !records.length && !supplied.reason) throw new AppError("No eligible branded duty records for " + vehicle.vehicleNumber + "; enter reviewed period inputs with a reason");
     lines.push(...fleetLines(input.billingType,agreement,metrics,vehicle.vehicleNumber));
