@@ -650,11 +650,13 @@ test(
       const vehicle=(await post("/masters/vehicles",{vehicleNumber:"MH02FIX8000",vehicleType:"FIX QA",branded:true,shiftHours:8})).body.data;
       const rate=await post("/masters/fleetRates",{...common,name:"Fixed QA",vehicleType:"FIX QA",shiftHours:8,fixedRate:20,effectiveFrom:"2026-01-01"});assert.equal(rate.status,201);
       const manager=await post("/masters/fleetManagers",{...common,name:"QA manager",monthlySalary:26000});assert.equal(manager.status,201,JSON.stringify(manager.body));
-      const input={...common,billingType:"Fixed",vehicleIds:[vehicle._id],managerIds:[manager.body.data._id],periodFrom:"2026-06-01",periodTo:"2026-06-30",invoiceDate:"2026-07-01",dueDate:"2026-08-01",stateCode:"27",placeOfSupply:"Maharashtra",cgstRate:9,sgstRate:9,taxConfirmed:true,roundToRupee:false};
+      const input={...common,billingType:"Fixed",vehicleIds:[vehicle._id],managerIds:[manager.body.data._id],periodFrom:"2026-06-01",periodTo:"2026-06-08",invoiceDate:"2026-07-01",dueDate:"2026-08-01",stateCode:"27",placeOfSupply:"Maharashtra",cgstRate:9,sgstRate:9,taxConfirmed:true,roundToRupee:false};
       const preview=await post("/invoices/preview",input);assert.equal(preview.status,200,JSON.stringify(preview.body));
       assert.equal(preview.body.data.baseAmount,86000);assert.equal(preview.body.data.totalAmount,101480);
       assert.equal(preview.body.data.narration.vehicles[0].agreement.fixedKm,3000);
+      assert.deepEqual(preview.body.data.lineItems.map(l=>l.quantity),[3000,1]);
       const issued=await post("/invoices",{...input,expectedTotal:preview.body.data.totalAmount,reviewToken:preview.body.data.reviewToken});assert.equal(issued.status,201,JSON.stringify(issued.body));
+      for (const section of ["invoice","narration","all"]) { const pdf=await get(`/exports/invoices/${issued.body.data._id}.pdf?section=${section}`);assert.equal(pdf.status,200);assert.match(pdf.headers["content-type"],/application\/pdf/); }
       assert.equal((await post("/invoices/preview",input)).status,409);
       const shifts=await get("/settings/shifts");assert.deepEqual(shifts.body.data.entries.map(s=>s.hours),[8,16,24]);
       const edited=await request(app).put("/api/settings/shifts").set("Authorization","Bearer "+token).send({entries:[...shifts.body.data.entries,{hours:12,monthlyKm:3500}]});assert.equal(edited.status,200,JSON.stringify(edited.body));

@@ -87,13 +87,16 @@ r.get(
       throw new AppError("Unsupported format");
     const i = await Invoice.findById(id.parse(req.params.id));
     if (!i) throw new AppError("Invoice not found", 404);
+    const section=String(req.query.section || "all");
+    if (!["all","invoice","narration"].includes(section)) throw new AppError("Unsupported PDF section");
+    if (section!=="all" && (req.params.format!=="pdf" || !["Fixed","Variable"].includes(i.billingType))) throw new AppError("Separate PDF sections are available for Fixed and Variable invoices");
     const b = await invoiceBalance(i);
     send(
       res,
       req.params.format === "pdf"
-        ? await invoicePdf(i, b)
+        ? await invoicePdf(i, b, section)
         : await invoiceDocx(i, b),
-      i.invoiceNumber,
+      i.invoiceNumber+(section==="narration"?"-narration":""),
       req.params.format,
     );
   }),

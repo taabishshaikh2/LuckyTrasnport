@@ -1,3 +1,4 @@
+import { printableBillingPdf } from "./printableBillingPdf.js";
 import PDFDocument from "pdfkit";
 import { siteTripRows } from "./excelExportService.js";
 import { siteColumns, durationText } from "../../shared/sites.js";
@@ -61,7 +62,8 @@ function billingPdf(i,balance) {
   });
 }
 
-export function invoicePdf(i, balance) {
+export function invoicePdf(i, balance, section="all") {
+  if (["Fixed","Variable"].includes(i.billingType)) return printableBillingPdf(i,section);
   if (i.lineItems?.length) return billingPdf(i,balance);
   return new Promise((resolve, reject) => {
     const d = new PDFDocument({ size: "A4", margin: 45 });

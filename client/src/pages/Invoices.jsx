@@ -172,11 +172,11 @@ export function InvoiceDetail() {
     [error, setError] = useState(""),
     [reason, setReason] = useState("");
   const i = r.data;
-  async function file(format) {
+  async function file(format, section="all") {
     try {
       await download(
-        "/exports/invoices/" + id + "." + format,
-        i.invoiceNumber.replaceAll("/", "-") + "." + format,
+        "/exports/invoices/" + id + "." + format + "?section=" + section,
+        i.invoiceNumber.replaceAll("/", "-") + (section==="narration"?"-narration":"") + "." + format,
       );
     } catch (e) {
       setError(message(e));
@@ -217,7 +217,8 @@ export function InvoiceDetail() {
             <strong>Outstanding {currency(i.outstanding)}</strong>
           </section>
           <div className="actions">
-            <button onClick={() => file("pdf")}>Download PDF</button>
+            <button onClick={() => file("pdf", ["Fixed","Variable"].includes(i.billingType)?"invoice":"all")}>Download invoice PDF</button>
+            {["Fixed","Variable"].includes(i.billingType) && <><button onClick={() => file("pdf","narration")}>Print / download narration</button><button onClick={() => file("pdf")}>Invoice + narration PDF</button></>}
             <button className="quiet" onClick={() => file("docx")}>
               DOCX
             </button>

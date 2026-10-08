@@ -46,7 +46,7 @@ export default function BillingInvoiceForm() {
       {!eligible.length && <p>No approved adhoc trips match this customer, site and period.</p>}
       {eligible.map(t=><label className="check-row" key={t._id}><input type="checkbox" checked={value.tripIds.includes(t._id)} onChange={e=>change("tripIds",e.target.checked?[...value.tripIds,t._id]:value.tripIds.filter(id=>id!==t._id))}/>
         {t.tripId}  /  {t.vehicleNumber}  /  {currency(t.totalAmount)}</label>)}
-    </section> : <section className="card"><h2>Select branded vehicles</h2><p>Select branded vehicles. Each vehicle uses its saved shift from the vehicle record. Fixed charges use the saved monthly KM allowance and matching monthly rate. Partial months are prorated by calendar days.</p>
+    </section> : <section className="card"><h2>Select branded vehicles</h2><p>Select branded vehicles. Each vehicle uses its saved shift from the vehicle record. Fixed charges use the saved monthly KM allowance and matching monthly rate. Fixed invoices use the full agreed KM and manager salary without day-based proration.</p>
       {!fleet.length && <p>No vehicle shifts for this customer and site.</p>}
       {fleet.map(v=>{const m=value.metrics.find(m=>m.vehicleId===v._id) || {};return <div className="card" key={v._id}>
         <label className="check-row"><input type="checkbox" checked={value.vehicleIds.includes(v._id)} onChange={e=>{
