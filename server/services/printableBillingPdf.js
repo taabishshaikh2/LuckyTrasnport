@@ -21,7 +21,12 @@ export function printableBillingPdf(i, section="all") {
   text(c.name||"LUCKY TRANSPORT SERVICES",true,19,"center");text(c.tagline,false,9,"center");text(c.address,false,8,"center");text([c.email,c.phone].filter(Boolean).join(" | "),false,8,"center");d.moveDown(.5);
   text(i.status==="Cancelled"?"CANCELLED TAX INVOICE":"TAX INVOICE",true,13,"center");d.moveDown(.5);
   table(["Invoice details","Invoice to"],[[`Invoice number: ${i.invoiceNumber}\nInvoice date: ${date(i.invoiceDate)}\nPeriod: ${date(i.periodFrom)} to ${date(i.periodTo)}\nDue date: ${date(i.dueDate)}`,`${i.invoicedTo||""}\n${i.billingAddress||""}\nLocation: ${i.location||i.site||""}`],[`GSTIN: ${c.gstin||""}\nSAC: ${i.sacNo||""}\nState code: ${i.stateCode||""}`,`Customer GSTIN: ${i.gstin||i.dhlGstin||""}\nPlace of supply: ${i.placeOfSupply||""}`]],[1,1]);
-  const groups=new Map();for(const l of i.lineItems||[]){const label=i.billingType==="Fixed"?(l.vehicleNumber?"Vehicle monthly fixed transportation charges":l.description.startsWith("Fleet management")?"Fleet management charges":l.description):l.description;groups.set(label,(groups.get(label)||0)+Number(l.amount));}
+  const items=i.lineItems||[];
+  const vehicleCount=new Set(items.filter(l=>l.vehicleNumber).map(l=>l.vehicleNumber)).size;
+  const managerCount=items.filter(l=>l.description.startsWith("Fleet management")).length;
+  const vehicleLabel=`Vehicle monthly fixed transportation charges - ${vehicleCount} ${vehicleCount===1?"vehicle":"vehicles"}`;
+  const managerLabel=`Fleet management charges - ${managerCount} ${managerCount===1?"manager":"managers"}`;
+  const groups=new Map();for(const l of items){const label=i.billingType==="Fixed"?(l.vehicleNumber?vehicleLabel:l.description.startsWith("Fleet management")?managerLabel:l.description):l.description;groups.set(label,(groups.get(label)||0)+Number(l.amount));}
   table(["DESCRIPTION & PARTICULARS","AMOUNT (INR)"],[[i.description||`${i.billingType} transportation charges for the selected billing period`,""],...Array.from(groups,([k,v])=>[k,money(v)])],[4,1]);
   table(["Invoice summary","AMOUNT (INR)"],[["Total taxable value",money(i.baseAmount)],...(i.nonTaxableAmount?[["Other reimbursements (outside GST)",money(i.nonTaxableAmount)]]:[]),[`CGST ${i.cgstRate||0}%`,money(i.cgstAmount)],[`SGST ${i.sgstRate||0}%`,money(i.sgstAmount)],[`IGST ${i.igstRate||0}%`,money(i.igstAmount)],["Round off",money(i.roundOff)],["GRAND TOTAL",money(i.totalAmount)]],[4,1]);
   text("Amount in words",true);text(i.amountInWords);d.moveDown(.5);
