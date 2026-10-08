@@ -66,7 +66,7 @@ const aliases = {
   tripCharges: ["tripcharges", "8hrspertripcharges", "amtpertripcharges"],
   tollParking: ["tollandparking", "tollparking", "cashfasttagtoll", "cashfastagtoll", "tollreimbursementvasai virarthanevashi".replace(/ /g,"")],
   totalServiceCharges: ["totalsvccharges", "totalservicecharges", "totalamount", "totalsdccharges"],
-  distanceKm: ["distance", "distancekm", "km"],
+  distanceKm: ["distance", "distancekm", "km", "totalkm"],
   billingGroup: ["billinggroup", "servicegroup"],
   remarks: ["remarks", "notes"],
 };

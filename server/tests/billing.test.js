@@ -61,3 +61,19 @@ test("monthly extra duty uses exact minutes for all assigned shifts", async()=>{
   const partial=dutyAllowance(104.5,8,"2026-06-01","2026-06-15");
   assert.equal(partial.includedDays,13);assert.equal(partial.extraMinutes,30);assert.equal(partial.additionalServices,.0625);
 });
+
+
+test("printed site exports preserve totals, merged summary and reimport below title rows",()=>{
+  const trip={tripId:"TEST",site:"Inbound",vehicleNumber:"MH02FG2797",vehicleType:"Custom",periodFrom:"2026-06-01",distanceKm:47,
+    totalHours:48.5,baseDutyHours:8,overtimeHours:40.5,subtotal:100,extraAmount:20,totalAmount:120,
+    entries:[{date:"2026-06-01",openingTime:"03:00",closingTime:"11:00",awbNumber:"000123",challanNumber:"TEST-1"}]};
+  const b=XLSX.read(siteWorkbook([trip],"Inbound",undefined,{name:"TEST vendor"}),{type:"buffer",cellStyles:true});
+  const sheet=b.Sheets[b.SheetNames[0]],rows=XLSX.utils.sheet_to_json(sheet,{header:1});
+  assert.equal(rows[0][3],"TEST vendor");assert.equal(rows[0][17],100);
+  assert.equal(rows[1][17],"40:30");assert.equal(rows[3][17],120);
+  assert.equal(rows[5][13],"TOTAL KM");assert.equal(rows[7][13],47);
+  assert.equal(rows[7][17],120);assert.equal(rows[7][11],"48:30");
+  assert.equal(sheet["!merges"].length,12);
+  const parsed=parseWorkbook(siteWorkbook([trip],"Inbound"));
+  assert.equal(parsed.rows.length,1);assert.equal(parsed.mapping.distanceKm,"TOTAL KM");
+});

@@ -1,11 +1,12 @@
-import XLSX from "xlsx";
+import XLSX from "xlsx-js-style";
 import { sites, siteColumns, durationText } from "../../shared/sites.js";
 import { AppError } from "../utils/errors.js";
 export function siteTripRows(trips) {
   return trips.map((t,index)=>{
     const e=t.entries?.[0] || {}, last=t.entries?.at(-1) || e;
     return {...e,srNo:index+1,date:new Date(t.periodFrom).toISOString().slice(0,10),
-      vehicleNo:t.vehicleNumber,vehicleType:t.vehicleType,customerName:e.customerName || e.chaName || "",
+      vehicleNo:t.vehicleNumber,vehicleType:t.vehicleType,customerName:e.customerName || e.chaName || t.customerId?.companyName || "",
+      distanceKm:t.distanceKm ?? e.distanceKm,ratePerKm:t.rateSnapshot?.perKmRate ?? "",
       pickupLocation:e.pickupLocation || t.pickupLocation,dropLocation:e.dropLocation || t.dropLocation,
       closingTime:last.closingTime,closingDate:last.closingDate,
       perTripHours:t.baseDutyHours ?? e.perTripHours,totalHours:t.totalHours,gtInHours:t.overtimeHours ?? e.gtInHours,
@@ -14,16 +15,50 @@ export function siteTripRows(trips) {
       totalServiceCharges:t.dutyKind === "Branded" ? e.totalServiceCharges : t.totalAmount};
   });
 }
-export function siteWorkbook(trips,site,invoice) {
+export function siteWorkbook(trips,site,invoice,company) {
   const profile=sites.find(s=>s.value===site);
   if (!profile) throw new AppError("Select one of the four sites");
   const book=XLSX.utils.book_new();
   const data=siteTripRows(trips);
-  const table=[siteColumns.map(c=>c[0]),...data.map(e=>siteColumns.map(([,k])=>
-    ["perTripHours","totalHours","gtInHours"].includes(k) ? durationText(e[k]) : e[k] ?? ""))];
+  const exportColumns = data.length ? [...siteColumns.slice(0,13), ["TOTAL KM", "distanceKm"], ["RATE PER KM", "ratePerKm"], ...siteColumns.slice(13)] : siteColumns;
+  const moneyKeys = new Set(["sdcCharges", "tollParking", "totalServiceCharges", "ratePerKm"]);
+  const durationKeys = new Set(["perTripHours", "totalHours", "gtInHours"]);
+  const sum = key => data.reduce((n,e)=>n+Number(e[key] || 0),0);
+  const headerRows = data.length ? 5 : 0;
+  const width = exportColumns.length;
+  const table = [];
+  if (data.length) {
+    const dates = data.map(e=>e.date).sort();
+    const period = [invoice?.periodFrom || dates[0],invoice?.periodTo || dates.at(-1)].map(v=>new Date(v).toISOString().slice(0,10)).join(" to ");
+    for (const [label,value,summary,amount] of [
+      ["Vendor Name",invoice?.companySnapshot?.name || company?.name || process.env.COMPANY_NAME || "Lucky Transport Services","PER TRIP AMOUNT",sum("sdcCharges")],
+      ["SERVICE",profile.label,"EXTRA HRS",durationText(sum("gtInHours"))],
+      ["PERIOD",period,"FASTAG & TOLL",sum("tollParking")],
+      ["COST CODE",invoice?.costCode || "","Total Amount",sum("totalServiceCharges")],
+    ]) {
+      const row=Array(width).fill(""); row[0]=label;row[3]=value;row[9]=summary;row[width-1]=amount;table.push(row);
+    }
+    table.push([]);
+  }
+  table.push(exportColumns.map(c=>c[0]));
+  for (const e of data) table.push(exportColumns.map(([,k])=>durationKeys.has(k) ? durationText(e[k]) : k==="date" ? e[k].split("-").reverse().join("-") : e[k] ?? ""));
+  if (data.length) table.push(exportColumns.map(([,k],i)=>i===0 ? "TOTAL" : durationKeys.has(k) ? durationText(sum(k)) : ["distanceKm","sdcCharges","tollParking","totalServiceCharges"].includes(k) ? sum(k) : ""));
   const sheet=XLSX.utils.aoa_to_sheet(table);
-  sheet["!cols"]=siteColumns.map(()=>({wch:20}));
-  sheet["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:table.length-1,c:15}})};
+  sheet["!cols"]=exportColumns.map(([,k])=>({wch:({srNo:6,date:13,vehicleNo:18,vehicleType:14,awbNumber:18,customerName:18,pickupLocation:11,dropLocation:14,sdcCharges:16,tollParking:18,totalServiceCharges:18})[k] || 12}));
+  sheet["!rows"]=table.map((_,r)=>({hpt:r===headerRows ? 62 : r<headerRows ? 18 : 21}));
+  sheet["!merges"]=data.length ? [0,1,2,3].flatMap(r=>[
+    {s:{r,c:0},e:{r,c:2}}, {s:{r,c:3},e:{r,c:8}}, {s:{r,c:9},e:{r,c:width-2}},
+  ]) : [];
+  const border={style:"thin",color:{rgb:"000000"}};
+  for(let r=0;r<table.length;r++) for(let c=0;c<width;c++) {
+    const addr=XLSX.utils.encode_cell({r,c}); const cell=sheet[addr] ||= {t:"s",v:""};
+    cell.s={font:{name:"Arial",sz:r>headerRows ? 10 : 11,bold:r<=headerRows || r===table.length-1},
+      alignment:{vertical:"center",horizontal:r<headerRows ? "left" : "center",wrapText:true},
+      ...(r>=headerRows ? {border:{top:border,bottom:border,left:border,right:border}} : {})};
+    if(r>headerRows && moneyKeys.has(exportColumns[c][1]) && cell.t==="n") {cell.z="#,##0.00";cell.s.alignment.horizontal="right";}
+    if(r<headerRows && c===width-1 && cell.t==="n") cell.z=r===1 ? "0.00" : "#,##0.00";
+  }
+  sheet["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:headerRows,c:0},e:{r:headerRows+data.length,c:width-1}})};
   XLSX.utils.book_append_sheet(book,sheet,profile.value + " Trips");
   if (data.length) {
     XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([
@@ -85,11 +120,11 @@ function bookBuffer(rows, name) {
   XLSX.utils.book_append_sheet(book, sheet, name);
   return XLSX.write(book, { type: "buffer", bookType: "xlsx" });
 }
-export async function allSitesWorkbook(trips) {
+export async function allSitesWorkbook(trips,company) {
   const book=XLSX.utils.book_new();
   for (const site of sites) {
     const matching=trips.filter(t=>t.site===site.value);
-    const sub=XLSX.read(siteWorkbook(matching,site.value),{type:"buffer"});
+    const sub=XLSX.read(siteWorkbook(matching,site.value,undefined,company),{type:"buffer",cellStyles:true});
     for (const name of sub.SheetNames) XLSX.utils.book_append_sheet(book,sub.Sheets[name],(name.startsWith(site.value)?name:site.value+" "+name).slice(0,31));
   }
   const legacy=trips.filter(t=>!t.site);

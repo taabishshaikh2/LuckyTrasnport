@@ -1,3 +1,4 @@
+import { getCompanyProfile } from "../services/companyProfileService.js";
 import { Router } from "express";
 import { Trip, Invoice } from "../models/index.js";
 import { operations } from "../middleware/auth.js";
@@ -67,7 +68,8 @@ r.get(
         "No trips match the selected filters. Create or import trips before exporting.",
         404,
       );
-    send(res, req.query.site ? siteWorkbook(trips,String(req.query.site)) : trips.some(t=>t.site) ? await allSitesWorkbook(trips) : await tripWorkbook(trips), "lucky-trip-sheet", "xlsx");
+    const company = await getCompanyProfile();
+    send(res, req.query.site ? siteWorkbook(trips,String(req.query.site),undefined,company) : trips.some(t=>t.site) ? await allSitesWorkbook(trips,company) : await tripWorkbook(trips), "lucky-trip-sheet", "xlsx");
   }),
 );
 r.get(
