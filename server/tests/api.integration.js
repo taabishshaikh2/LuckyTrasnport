@@ -645,6 +645,34 @@ test(
       const imported=await post(url+"/preview",payload);assert.equal(imported.status,200,JSON.stringify(imported.body));assert.equal(imported.body.data.successfulRows,1,JSON.stringify(imported.body));
       assert.equal(imported.body.data.rows[0].calculation.totalAmount,2818);
     });
+    await t.test("branded shift logs calculate variable charges without sites or agreements",async()=>{
+      const common={customerId:refs.customers._id};
+      const vehicle=(await post("/masters/vehicles",{vehicleNumber:"MH02BRAND16",vehicleType:"TATA 407",branded:true,shiftHours:16,adcRate:1914,amcRate:2.5,parkingMonthly:3000,tollEntryMonthly:1000})).body.data;
+      assert.ok(vehicle._id);
+      const fuel=await post("/masters/fuelCharges",{...common,site:"Branded",name:"June fuel",vehicleId:vehicle._id,periodFrom:"2026-06-01",periodTo:"2026-06-30",mileage:7,fuelRate:97.83,fuelType:"Diesel"});assert.equal(fuel.status,201);
+      const shift={...common,vehicleId:vehicle._id,date:"2026-06-01",openingKm:1000,closingKm:1990,openingTime:"07:00",closingTime:"15:00",airportFee:250};
+      const first=await post("/masters/brandedLogs",shift);assert.equal(first.status,201,JSON.stringify(first.body));assert.equal(first.body.data.distanceKm,990);assert.equal(first.body.data.totalHours,8);
+      assert.equal((await post("/masters/brandedLogs",shift)).status,409);
+      assert.equal((await post("/masters/brandedLogs",{...shift,openingTime:"08:00",closingTime:"15:00"})).status,400);
+      for(let n=1;n<58;n++){
+        const day=Math.floor(n/2)+1,second=n%2===1;
+        const row=await post("/masters/brandedLogs",{...shift,date:"2026-06-"+String(day).padStart(2,"0"),openingTime:second?"15:00":"07:00",closingTime:second?"23:00":"15:00",held:true,holdLocation:"Loading warehouse",airportFee:0});assert.equal(row.status,201,JSON.stringify(row.body));assert.equal(row.body.data.distanceKm,0);
+      }
+      const exported=await get("/exports/branded-logs.xlsx?month=2026-06&vehicleId="+vehicle._id).buffer(true).parse((res,done)=>{const chunks=[];res.on("data",b=>chunks.push(b));res.on("end",()=>done(null,Buffer.concat(chunks)));res.on("error",done);});assert.equal(exported.status,200);
+      const wb=XLSX.read(exported.body,{type:"buffer"});const sheet=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.equal(sheet[2].length,10);assert.equal(sheet.at(-1)[8],11484);
+      for(const day of [7,14,21,28])assert.equal((await post("/masters/weeklyOffs",{...common,vehicleId:vehicle._id,date:"2026-06-"+String(day).padStart(2,"0")})).status,201);
+      const input={...common,site:"Branded",billingType:"Variable",vehicleIds:[vehicle._id],periodFrom:"2026-06-01",periodTo:"2026-06-30",invoiceDate:"2026-07-01",dueDate:"2026-08-01",stateCode:"27",placeOfSupply:"Maharashtra",cgstRate:9,sgstRate:9,taxConfirmed:true,roundToRupee:false};
+      const preview=await post("/invoices/preview",input);assert.equal(preview.status,200,JSON.stringify(preview.body));
+      const data=preview.body.data,metrics=data.narration.vehicles[0].metrics;
+      assert.equal(metrics.actualHours,464);assert.equal(metrics.includedHours,416);assert.equal(metrics.additionalServices,6);
+      assert.equal(data.lineItems.find(l=>l.description.startsWith("Additional services")).amount,11484);
+      assert.equal(data.lineItems.find(l=>l.description.startsWith("AMC")).amount,2475);assert.equal(data.nonTaxableAmount,250);
+      assert.ok(!data.lineItems.some(l=>l.description==="Trip charges"));
+      const issued=await post("/invoices",{...input,expectedTotal:data.totalAmount,reviewToken:data.reviewToken});assert.equal(issued.status,201,JSON.stringify(issued.body));
+      const pdf=await get(`/exports/invoices/${issued.body.data._id}.pdf?section=narration`);assert.equal(pdf.status,200);
+      assert.equal((await get("/exports/trips.xlsx?invoiceId="+issued.body.data._id)).status,200);
+      assert.equal((await request(app).delete("/api/masters/brandedLogs/"+first.body.data._id).set("Authorization","Bearer "+token)).status,409);
+    });
     await t.test("saved vehicle shift and selected manager salaries bill without agreements",async()=>{
       const common={customerId:refs.customers._id,site:"Inbound"};
       const vehicle=(await post("/masters/vehicles",{vehicleNumber:"MH02FIX8000",vehicleType:"FIX QA",branded:true,shiftHours:8})).body.data;

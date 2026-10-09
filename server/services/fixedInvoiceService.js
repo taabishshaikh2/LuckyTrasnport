@@ -12,7 +12,7 @@ export async function prepareFixed(input,session) {
   if(!vehicle.branded)throw new AppError("Select a branded vehicle");
   const shift=settings.entries.find(s=>s.hours===vehicle.shiftHours);
   if(!shift)throw new AppError("Select a saved shift for "+vehicle.vehicleNumber);
-  const rates=await FleetRate.find({customerId:input.customerId,site:input.site,vehicleType:{$in:[vehicleRateType(vehicle),vehicle.vehicleType]},shiftHours:shift.hours,archived:false,active:true,effectiveFrom:{$lte:new Date(input.periodFrom)},$or:[{effectiveTo:{$gte:new Date(input.periodTo)}},{effectiveTo:null}]}).session(session || null).lean();
+  const rates=await FleetRate.find({customerId:input.customerId,...(input.site==="Branded"?{}:{site:input.site}),vehicleType:{$in:[vehicleRateType(vehicle),vehicle.vehicleType]},shiftHours:shift.hours,archived:false,active:true,effectiveFrom:{$lte:new Date(input.periodFrom)},$or:[{effectiveTo:{$gte:new Date(input.periodTo)}},{effectiveTo:null}]}).session(session || null).lean();
   if(rates.length!==1)throw new AppError("Save one matching monthly per-KM rate for "+vehicle.vehicleNumber+" and its selected shift");
   const rate=rates[0],quantity=shift.monthlyKm*fraction;
   lines.push({vehicleId,vehicleNumber:vehicle.vehicleNumber,description:"Vehicle fixed cost",quantity,rate:rate.fixedRate,amount:money(quantity*rate.fixedRate),taxable:true});
@@ -21,7 +21,7 @@ export async function prepareFixed(input,session) {
   for(let day=+new Date(input.periodFrom);day<=+new Date(input.periodTo);day+=86400000)keys.push([input.customerId,input.site,vehicleId,"Fixed",new Date(day).toISOString().slice(0,10)].join(":"));
  }
  for(const id of input.managerIds) {
-  const manager=await FleetManager.findOne({_id:id,customerId:input.customerId,site:input.site,active:true,archived:false}).session(session || null).lean();
+  const manager=await FleetManager.findOne({_id:id,customerId:input.customerId,...(input.site==="Branded"?{}:{site:input.site}),active:true,archived:false}).session(session || null).lean();
   if(!manager)throw new AppError("Select an active fleet manager for this customer and site");
   lines.push({description:"Fleet management - "+manager.name,quantity:fraction,rate:manager.monthlySalary,amount:money(fraction*manager.monthlySalary),taxable:true});
   vehicles[0].sources.push({model:"FleetManager",record:manager});

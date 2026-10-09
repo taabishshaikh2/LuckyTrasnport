@@ -33,10 +33,19 @@ export const Vehicle = make("Vehicle", {
   vehicleType: String,
   customVehicleType: String,
   shiftHours:Number, branded:{type:Boolean,default:false},
+  adcRate:{type:Number,default:0},amcRate:{type:Number,default:0},parkingMonthly:{type:Number,default:0},tollEntryMonthly:{type:Number,default:0},
   capacity: String,
   status: { type: String, default: "Active" },
   notes: String,
 });
+export const BrandedLog = make("BrandedLog", {
+ ...common,logId:{type:String,unique:true},name:String,customerId:ref("Customer"),vehicleId:ref("Vehicle"),
+ date:Date,openingKm:Number,closingKm:Number,distanceKm:Number,openingTime:String,closingTime:String,
+ totalHours:Number,held:{type:Boolean,default:false},holdLocation:String,airportFee:Number,
+},s=>s.index({vehicleId:1,date:1,openingTime:1},{unique:true,partialFilterExpression:{archived:false}}));
+export const WeeklyOff = make("WeeklyOff", {
+ ...common,offId:{type:String,unique:true},name:String,customerId:ref("Customer"),vehicleId:ref("Vehicle"),date:Date,notes:String,
+},s=>s.index({vehicleId:1,date:1},{unique:true,partialFilterExpression:{archived:false}}));
 export const Agreement = make("Agreement", {
   ...common, agreementId: { type: String, unique: true }, name: String,
   vehicleId: ref("Vehicle"), customerId: ref("Customer"), site: String, fleetRateId: ref("FleetRate"),
@@ -329,7 +338,7 @@ export const Audit = make("Audit", {
   changedBy: ref("User"),
 });
 export const masters = {
-  fleetManagers: FleetManager, tripRates: TripRate, agreements: Agreement, fleetRates: FleetRate, fuelCharges: FuelCharge, vehicleExpenses: VehicleExpense, airportExpenses: AirportExpense,
+  brandedLogs:BrandedLog,weeklyOffs:WeeklyOff, fleetManagers: FleetManager, tripRates: TripRate, agreements: Agreement, fleetRates: FleetRate, fuelCharges: FuelCharge, vehicleExpenses: VehicleExpense, airportExpenses: AirportExpense,
   vehicles: Vehicle,
   drivers: Driver,
   customers: Customer,

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import Decimal from "decimal.js";
-import { Invoice, Trip, Customer, Audit, BillingClaim, Agreement, Vehicle, FleetManager, ShiftSettings, FleetRate, FuelCharge, VehicleExpense, AirportExpense } from "../models/index.js";
+import { BrandedLog, WeeklyOff, Invoice, Trip, Customer, Audit, BillingClaim, Agreement, Vehicle, FleetManager, ShiftSettings, FleetRate, FuelCharge, VehicleExpense, AirportExpense } from "../models/index.js";
 import { operations } from "../middleware/auth.js";
 import { invoiceSchema, paymentSchema, id } from "../validators/index.js";
 import { invoiceNumber } from "../services/sequenceService.js";
@@ -104,7 +104,7 @@ r.post(
         const touched=await Agreement.updateOne({_id:vehicle.agreement._id,updatedAt:vehicle.agreement.updatedAt},{$inc:{referenceVersion:1}},{session:s});
         if (!touched.modifiedCount) throw new AppError("Agreement changed; review again",409);
       }
-      const sourceModels={Vehicle,FleetManager,ShiftSettings,FleetRate,FuelCharge,VehicleExpense,AirportExpense};
+      const sourceModels={BrandedLog,WeeklyOff,Vehicle,FleetManager,ShiftSettings,FleetRate,FuelCharge,VehicleExpense,AirportExpense};
       for (const v of data.narration.vehicles) for (const source of v.sources || []) {
         const touched=await sourceModels[source.model].updateOne({_id:source.record._id,updatedAt:source.record.updatedAt,archived:false},{$inc:{referenceVersion:1}},{session:s});
         if (!touched.modifiedCount) throw new AppError("Billing source changed; review again",409);

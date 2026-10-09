@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { sites } from "../../shared/sites.js";
-const site = z.enum(sites.map(s => s.value));
+const site = z.enum([...sites.map(s => s.value),"Branded"]);
 const str = z.string().trim();
 const required = str.min(1).max(250);
 const optional = str.max(2000).optional().default("");
@@ -44,7 +44,14 @@ export const methods = [
   "Fixed + Overtime",
   "Mutually Agreed / Manual",
 ];
+const clock=str.regex(/^([01]\d|2[0-3]):[0-5]\d$/,"Enter a valid time");
 export const masterSchemas = {
+ brandedLogs:z.object({customerId:id,vehicleId:id,date,openingKm:n,closingKm:n,openingTime:clock,closingTime:clock,held:z.boolean().default(false),holdLocation:optional,airportFee:n}).transform(v=>{
+  const minute=t=>Number(t.slice(0,2))*60+Number(t.slice(3));
+  const minutes=(minute(v.closingTime)-minute(v.openingTime)+1440)%1440;
+  return {...v,name:v.date+" "+v.openingTime,distanceKm:v.held?0:v.closingKm-v.openingKm,totalHours:minutes/60};
+ }).refine(v=>v.totalHours===8,"Each branded log must be one 8-hour shift").refine(v=>v.held || v.closingKm>=v.openingKm,"Closing KM must not be less than opening KM").refine(v=>!v.held || !!v.holdLocation,"Enter the loading / hold location"),
+ weeklyOffs:z.object({customerId:id,vehicleId:id,date,notes:optional}).transform(v=>({...v,name:v.date})),
   fleetManagers:z.object({name:required,customerId:id,site,monthlySalary:num.positive(),active:z.boolean().default(true),notes:optional}),
   tripRates:z.object({vehicleType:required,upTo50:num,upTo150:num,above150:num,overtimeRate:num,active:z.boolean().default(true)}),
   fleetRates: z.object({name:required,customerId:id,site,vehicleType:required,
@@ -74,6 +81,7 @@ export const masterSchemas = {
     vehicleType: required,
     customVehicleType: optional,
     shiftHours:z.union([num.positive().max(168),z.literal("")]).optional().transform(v=>v===""?undefined:v), branded:z.boolean().default(false),
+    adcRate:n,amcRate:n,parkingMonthly:n,tollEntryMonthly:n,
     capacity: optional,
     status: z
       .enum(["Active", "On Trip", "Maintenance", "Inactive"])

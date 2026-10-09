@@ -27,7 +27,7 @@ export function printableBillingPdf(i, section="all") {
   const vehicleLabel=`Vehicle monthly fixed transportation charges - ${vehicleCount} ${vehicleCount===1?"vehicle":"vehicles"}`;
   const managerLabel=`Fleet management charges - ${managerCount} ${managerCount===1?"manager":"managers"}`;
   const groups=new Map();for(const l of items){const label=i.billingType==="Fixed"?(l.vehicleNumber?vehicleLabel:l.description.startsWith("Fleet management")?managerLabel:l.description):l.description;groups.set(label,(groups.get(label)||0)+Number(l.amount));}
-  table(["DESCRIPTION & PARTICULARS","AMOUNT (INR)"],[[i.description||`${i.billingType} transportation charges for the selected billing period`,""],...Array.from(groups,([k,v])=>[k,money(v)])],[4,1]);
+  table(["DESCRIPTION & PARTICULARS","AMOUNT (INR)"],Array.from(groups,([k,v])=>[k,money(v)]),[4,1]);
   table(["Invoice summary","AMOUNT (INR)"],[["Total taxable value",money(i.baseAmount)],...(i.nonTaxableAmount?[["Other reimbursements (outside GST)",money(i.nonTaxableAmount)]]:[]),[`CGST ${i.cgstRate||0}%`,money(i.cgstAmount)],[`SGST ${i.sgstRate||0}%`,money(i.sgstAmount)],[`IGST ${i.igstRate||0}%`,money(i.igstAmount)],["Round off",money(i.roundOff)],["GRAND TOTAL",money(i.totalAmount)]],[4,1]);
   text("Amount in words",true);text(i.amountInWords);d.moveDown(.5);
   text("NOTE",true);for(const note of [`PAN: ${c.pan||""}`,`Bank: ${c.bankName||""} | Account: ${c.bankAccount||""} | IFSC: ${c.bankIfsc||""}`,c.disputeClause,c.interestClause,c.paymentClause])if(note)text(note,false,8);
@@ -45,7 +45,22 @@ export function printableBillingPdf(i, section="all") {
    table(["Sr. no.","Fleet management","Quantity","Rate per month","Amount"],management.map((l,k)=>[k+1,l.description.replace("Fleet management - ",""),Number(l.quantity),money(l.rate),money(l.amount)]).concat([["","","","Total",money(management.reduce((s,l)=>s+l.amount,0))]]),[.5,2, .7,1.2,1.2]);
    const other=(i.lineItems||[]).filter(l=>!vehicle.includes(l)&&!management.includes(l));if(other.length)table(["Other charge","Quantity","Rate","Amount"],other.map(l=>[l.description,l.quantity,money(l.rate),money(l.amount)]),[3,1,1,1]);
   }else{
-   table(["Vehicle / charge","Quantity","Rate","Amount","Tax treatment"],(i.lineItems||[]).map(l=>[(l.vehicleNumber?l.vehicleNumber+" / ":"")+l.description,Number(l.quantity||0),money(l.rate),money(l.amount),l.taxable?"Taxable":"Outside GST"]),[3,1,1,1.2,1]);
+   const vs=i.narration?.vehicles||[];
+   const groups=[['1) FUEL COST',l=>l.description.startsWith('Fuel reimbursement')],['2) ADDITIONAL SERVICES CHARGES',l=>l.description.startsWith('Additional services')],['3) TOLL, ENTRY & PARKING CHARGES',l=>/parking|toll \/ entry/i.test(l.description)],['4) AIRPORT ENTRY REIMBURSEMENT (OUTSIDE GST)',l=>l.description.startsWith('Airport')],['5) AMC CHARGES',l=>l.description.startsWith('AMC')]];
+   const included=new Set();
+   for(const [heading,match] of groups){
+    const rows=(i.lineItems||[]).filter(match);rows.forEach(l=>included.add(l));if(!rows.length)continue;
+    text(heading,true,10);d.moveDown(.5);
+    const fuel=heading.startsWith('1)'),adc=heading.startsWith('2)');
+    const headers=fuel?['Vehicle no.','Vehicle type','Total KM','Mileage','Fuel rate','Amount']:adc?['Vehicle no.','Vehicle type','Extra days (24h)','8-hour shifts','Rate','Amount']:['Vehicle no.','Vehicle type / charge','Quantity','Rate','Amount'];
+    const values=rows.map(l=>{const v=vs.find(v=>v.vehicleNumber===l.vehicleNumber),type=v?.agreement?.vehicleType||l.description;
+      return fuel?[l.vehicleNumber,type,v?.metrics?.distanceKm??'',v?.agreement?.mileage??'',money(l.rate),money(l.amount)]:adc?[l.vehicleNumber,type,Number(l.quantity/3).toFixed(2),Number(l.quantity).toFixed(2),money(l.rate),money(l.amount)]:[l.vehicleNumber,type,Number(l.quantity).toFixed(2),money(l.rate),money(l.amount)];});
+    const total=Array(headers.length).fill('');total[headers.length-2]='Total';total[headers.length-1]=money(rows.reduce((sum,l)=>sum+l.amount,0));
+    table(headers,values.concat([total]),fuel||adc?[1.4,1.4,1, .8,1,1.2]:[1.4,2,1,1,1.2]);
+   }
+   const other=(i.lineItems||[]).filter(l=>!included.has(l));if(other.length)table(['Other charge','Quantity','Rate','Amount'],other.map(l=>[l.description,l.quantity,money(l.rate),money(l.amount)]),[3,1,1,1]);
+   for(const v of vs)if(v.metrics?.reason){text(v.vehicleNumber+': '+v.metrics.reason,false,8);d.moveDown(.5);}
+
   }
   table([`Total ${i.billingType.toLowerCase()} cost before GST`,"AMOUNT (INR)"],[["Total",money(Number(i.baseAmount||0)+Number(i.nonTaxableAmount||0))]],[4,1]);
   d.moveDown();text("DHL Supervisor                                      Vendor Sign",true);

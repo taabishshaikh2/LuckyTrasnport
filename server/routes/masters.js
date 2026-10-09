@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import {
-  masters,
+  masters, BillingClaim,
   User,
   Trip,
   Invoice,
@@ -15,7 +15,7 @@ import { sequence } from "../services/sequenceService.js";
 import { transaction } from "../services/transactionService.js";
 import { wrap, ok, AppError } from "../utils/errors.js";
 const r = Router();
-const meta = {
+const meta = {brandedLogs:["logId","BLOG-"],weeklyOffs:["offId","OFF-"],
   fleetManagers:["managerId","FM-"], tripRates:["rateId","TRATE-"],
   agreements: ["agreementId", "AGR-"], fleetRates:["rateId","FLEET-"], fuelCharges:["chargeId","FUEL-"], vehicleExpenses:["chargeId","EXP-"], airportExpenses:["chargeId","AIR-"],
   vehicles: ["vehicleId", "V"],
@@ -88,7 +88,12 @@ r.get(
   "/:entity",
   operations,
   wrap(async (req, res) => {
-    const records = await req.Model.find({ archived: false })
+    const filter={archived:false};
+    if (["brandedLogs","weeklyOffs"].includes(req.entity) && req.query.month){
+      const month=String(req.query.month);if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw new AppError("Select a valid month");
+      const from=new Date(month+"-01");filter.date={$gte:from,$lt:new Date(Date.UTC(from.getUTCFullYear(),from.getUTCMonth()+1,1))};
+    }
+    const records = await req.Model.find(filter)
       .sort(req.entity === "routes" ? { order: 1 } : { createdAt: -1 })
       .limit(2000)
       .lean();
@@ -110,6 +115,22 @@ const permission = (req, res, next) =>
     ? admin(req, res, next)
     : operations(req, res, next);
 async function references(entity, v, session) {
+  if (["brandedLogs","weeklyOffs"].includes(entity)) {
+    const vehicle=await masters.vehicles.findOne({_id:v.vehicleId,branded:true,archived:false}).session(session);
+    if (!vehicle) throw new AppError("Select a branded vehicle");
+    if (!await masters.customers.exists({_id:v.customerId,archived:false}).session(session)) throw new AppError("Customer unavailable");
+    const day=new Date(v.date).toISOString().slice(0,10);
+    if (await BillingClaim.exists({key:{$regex:":"+v.vehicleId+":Variable:"+day+"$"}}).session(session)) throw new AppError("This day is already billed. Cancel the invoice before changing its logs or weekly off",409);
+    if (entity==="brandedLogs") {
+      const start=+new Date(day)+Number(v.openingTime.slice(0,2))*3600000+Number(v.openingTime.slice(3))*60000,end=start+8*3600000;
+      const neighbours=await masters.brandedLogs.find({vehicleId:v.vehicleId,archived:false,date:{$gte:new Date(+new Date(day)-86400000),$lte:new Date(+new Date(day)+86400000)},...(v._id?{_id:{$ne:v._id}}:{})}).session(session).lean();
+      if(neighbours.some(l=>{const a=+l.date+Number(l.openingTime.slice(0,2))*3600000+Number(l.openingTime.slice(3))*60000;return a<end && a+l.totalHours*3600000>start;}))throw new AppError("This shift overlaps an existing vehicle shift",409);
+    }
+    const duplicate={vehicleId:v.vehicleId,date:v.date,archived:false,...(v._id?{_id:{$ne:v._id}}:{}),...(entity==="brandedLogs"?{openingTime:v.openingTime}:{})};
+    if (await masters[entity].exists(duplicate).session(session)) throw new AppError("This shift / off date is already recorded",409);
+    await masters.vehicles.updateOne({_id:v.vehicleId},{$inc:{referenceVersion:1}},{session});
+  }
+
   if (["fleetRates","fuelCharges","vehicleExpenses","airportExpenses","fleetManagers"].includes(entity)) {
     if (!await masters.customers.exists({_id:v.customerId,archived:false}).session(session)) throw new AppError("Customer unavailable");
     await masters.customers.updateOne({_id:v.customerId},{$inc:{referenceVersion:1}},{session});
@@ -216,6 +237,7 @@ r.patch(
           v.status = "On Trip";
       }
       old.$locals.previousValue = old.toObject();
+      if (["brandedLogs","weeklyOffs"].includes(req.entity)) await references(req.entity,{...old.toObject(),_id:String(old._id)},session);
       Object.assign(old, v, { updatedBy: req.user._id });
       await old.save({ session });
       await Audit.create(
@@ -277,6 +299,7 @@ r.delete(
           "Disable dependent rates before archiving the route",
         );
       const source=await req.Model.findById(req.params.id).session(session);
+      if (source && ["brandedLogs","weeklyOffs"].includes(req.entity)) await references(req.entity,{...source.toObject(),_id:String(source._id)},session);
       if (source?.customerId) await masters.customers.updateOne({_id:source.customerId},{$inc:{referenceVersion:1}},{session});
       const updated = await req.Model.findByIdAndUpdate(
         req.params.id,

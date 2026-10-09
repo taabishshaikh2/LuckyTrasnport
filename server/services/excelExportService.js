@@ -1,3 +1,4 @@
+import {logAdcAmounts} from "../../shared/brandedLogs.js";
 import XLSX from "xlsx-js-style";
 import { sites, siteColumns, durationText } from "../../shared/sites.js";
 import { AppError } from "../utils/errors.js";
@@ -186,4 +187,20 @@ export async function tripWorkbook(trips) {
     });
   }
   return bookBuffer(rows, "Trips");
+}
+
+export function brandedWorkbook(logs,vehicles,offs=[]){
+ const wb=XLSX.utils.book_new();
+ const groups=new Map();for(const l of logs){const key=String(l.vehicleId)+":"+String(l.customerId)+":"+new Date(l.date).toISOString().slice(0,7);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(l);}
+ let sheetIndex=0;
+ for(const rows of groups.values()){
+  const v=vehicles.find(v=>String(v._id)===String(rows[0].vehicleId)),month=new Date(rows[0].date).toISOString().slice(0,7);
+  const off=offs.filter(o=>String(o.vehicleId)===String(v._id)&&String(o.customerId)===String(rows[0].customerId)&&new Date(o.date).toISOString().slice(0,7)===month);
+  const adc=logAdcAmounts(rows,v.shiftHours,v.adcRate||0,off.length||undefined,v.includedHours);
+  const data=[["LUCKY TRANSPORT SERVICES - BRANDED SHIFT LOG"],["Vehicle",v.vehicleNumber,"Month",month,"Assigned duty hours",v.shiftHours],["Date","Vehicle no.","Opening KM","Closing KM","Total KM","Opening time","Closing time","Total hours","Additional service charges","Domestic airport entry"],...rows.map(l=>[new Date(l.date).toISOString().slice(0,10),v.vehicleNumber,l.held?"Loaded / held: "+l.holdLocation:l.openingKm,l.held?l.holdLocation:l.closingKm,l.distanceKm,l.openingTime,l.closingTime,l.totalHours,adc.get(String(l._id))||0,l.airportFee||0]),["TOTAL","","","",rows.reduce((s,l)=>s+l.distanceKm,0),"","",rows.reduce((s,l)=>s+l.totalHours,0),Array.from(adc.values()).reduce((a,b)=>a+b,0),rows.reduce((s,l)=>s+Number(l.airportFee||0),0)]];
+  const ws=XLSX.utils.aoa_to_sheet(data);ws['!cols']=[14,18,25,23,12,15,15,14,20,20].map(wch=>({wch}));ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:9}}];
+  for(const key of Object.keys(ws)){if(key.startsWith('!'))continue;const row=XLSX.utils.decode_cell(key).r;ws[key].s={font:{name:'Arial',sz:10,bold:row<=2||row===data.length-1},alignment:{vertical:'center',wrapText:true},border:Object.fromEntries(['top','bottom','left','right'].map(k=>[k,{style:'thin',color:{rgb:'333333'}}]))};}
+  XLSX.utils.book_append_sheet(wb,ws,(v.vehicleNumber+'-'+month+'-'+ ++sheetIndex).slice(0,31));
+ }
+ return XLSX.write(wb,{type:'buffer',bookType:'xlsx'});
 }

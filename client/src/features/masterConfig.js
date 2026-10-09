@@ -19,9 +19,11 @@ const status = (options) => f("status", "Status", "text", options);
 const notes = f("notes", "Notes", "textarea");
 
 export const config = {
+ brandedLogs:{title:"Branded shift logs",label:"name",id:"logId",defaults:{date:today(),openingTime:"07:00",closingTime:"15:00",openingKm:0,closingKm:0,held:false,airportFee:0},fields:[f("customerId","Billing customer"),f("vehicleId","Branded vehicle"),f("date","Date","date"),f("held","Loaded / held at location","checkbox"),f("holdLocation","Loading / hold location"),f("openingKm","Opening odometer KM","number"),f("closingKm","Closing odometer KM","number"),f("openingTime","Opening time","time"),f("closingTime","Closing time","time"),f("airportFee","Domestic airport entry fee","number")]},
+ weeklyOffs:{title:"Vehicle weekly offs",label:"name",id:"offId",defaults:{date:today()},fields:[f("customerId","Billing customer"),f("vehicleId","Branded vehicle"),f("date","Off date","date"),notes]},
   fleetManagers:{title:"Fleet managers",label:"name",id:"managerId",defaults:{monthlySalary:0,active:true},fields:[f("name","Manager name"),f("customerId","Billing customer"),f("site","Site","text",sites),f("monthlySalary","Salary per month","number"),f("active","Active","checkbox"),notes]},
 
-  tripRates:{title:"Trip rate chart",label:"vehicleType",id:"rateId",defaults:{upTo50:0,upTo150:0,above150:0,overtimeRate:0,active:true},
+  tripRates:{title:"Adhoc trip rate chart",label:"vehicleType",id:"rateId",defaults:{upTo50:0,upTo150:0,above150:0,overtimeRate:0,active:true},
 
     fields:[f("vehicleType","Vehicle type"),f("upTo50","0-50 KM charge","number"),f("upTo150","Above 50-150 KM charge","number"),
 
@@ -37,7 +39,7 @@ export const config = {
 
       f("shiftHours","Shift hours"),f("fixedRate","Fixed rate per KM","number"),
 
-      f("serviceRate","Additional services rate per 8-hour shift","number"),f("amcRate","AMC per KM (optional)","number"),
+      
 
       f("effectiveFrom","Valid from","date"),f("effectiveTo","Valid until (optional)","date"),f("active","Active","checkbox")],
 
@@ -106,7 +108,7 @@ export const config = {
     fields: [
 
       f("vehicleNumber", "Vehicle number"),
-      f("branded","Branded vehicle","checkbox"),f("shiftHours","Assigned shift (save once)"),
+      f("branded","Branded vehicle","checkbox"),f("adcRate","ADC rate per 8-hour shift","number"),f("amcRate","AMC rate per KM","number"),f("parkingMonthly","Monthly parking charge","number"),f("tollEntryMonthly","Monthly toll / entry charge","number"),f("shiftHours","Assigned shift (save once)"),
 
       f("vehicleType", "Vehicle type", "text", [
 

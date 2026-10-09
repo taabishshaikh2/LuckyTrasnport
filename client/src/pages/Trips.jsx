@@ -39,9 +39,10 @@ export function TripList({ user }) {
           <h1>Trips & challans</h1>
         </div>
         {user.role !== "DRIVER" && (
+          <><Link className="button" to="/brandedLogs?new">+ Branded shift</Link>
           <Link className="button" to="/trips/new">
-            + New trip
-          </Link>
+            + Adhoc trip
+          </Link></>
         )}
       </div>
       <Field name="site" label="Site" options={[{value:"",label:"All sites"},...sites]} value={site} onChange={(_,v)=>setSite(v)} />

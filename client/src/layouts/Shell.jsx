@@ -24,13 +24,13 @@ const items = [
   ["/more", "More", Menu],
 ];
 export const moreItems = [
+  ["/brandedLogs", "Branded shift logs", Route],
+  ["/weeklyOffs", "Weekly offs", BookOpen],
   ["/drivers", "Drivers", Users],
   ["/customers", "Customers", Contact],
   ["/rates", "Rate chart", BookOpen],
   ["/fleetManagers", "Fleet managers", BookOpen],
   ["/fuelCharges", "Fuel charges", Wallet],
-  ["/vehicleExpenses", "Toll, entry & parking", Wallet],
-  ["/airportExpenses", "Airport reimbursement", Wallet],
   ["/routes", "Locations", MapPin],
   ["/payments", "Payments", Wallet],
   ["/reports", "Reports & exports", FileSpreadsheet],

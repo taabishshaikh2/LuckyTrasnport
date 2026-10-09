@@ -1,3 +1,5 @@
+import {prepareBrandedVariable} from "./brandedBillingService.js";
+import {BrandedLog} from "../models/index.js";
 import {prepareFixed} from "./fixedInvoiceService.js";
 import { tripChargeTotal } from "./distanceRateService.js";
 import { simpleFleetLines } from "./simpleFleetBillingService.js";
@@ -40,6 +42,7 @@ export async function prepareFleet(input, session) {
   if (input.periodFrom.slice(0,7)!==input.periodTo.slice(0,7)) throw new AppError("Use one calendar month or a date range within that month for fleet billing");
   if ((to-from)/86400000 > 366) throw new AppError("Select a billing period of at most one year");
   if(input.billingType === "Fixed" && (input.managerIds.length || await Vehicle.exists({_id:{$in:input.vehicleIds},branded:true} ).session(session || null))) return prepareFixed(input,session);
+  if(input.billingType==="Variable" && (await Vehicle.exists({_id:{$in:input.vehicleIds},branded:true,archived:false}).session(session||null) || await BrandedLog.exists({vehicleId:{$in:input.vehicleIds},customerId:input.customerId,archived:false}).session(session||null))) return prepareBrandedVariable(input,session);
   const trips=await Trip.find({customerId:input.customerId,site:input.site,dutyKind:"Branded",vehicleId:{$in:input.vehicleIds},
     status:{$in:["Approved","Completed","Invoiced"]}, periodFrom:{$gte:from},periodTo:{$lte:to},
   }).session(session || null).sort({periodFrom:1}).lean();

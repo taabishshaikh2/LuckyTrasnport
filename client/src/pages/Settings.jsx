@@ -133,7 +133,7 @@ export default function Settings({ user }) {
             {canEdit && (
               <div className="actions sticky-actions">
                 <button disabled={busy}>
-                  {busy ? "Savingâ€¦" : "Save company profile"}
+                  {busy ? "Saving..." : "Save company profile"}
                 </button>
                 <button
                   type="button"
