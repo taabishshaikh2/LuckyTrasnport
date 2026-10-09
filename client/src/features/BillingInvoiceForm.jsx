@@ -5,10 +5,21 @@ import { api,message } from "../api/client";
 import { Field,today,currency } from "../components/UI";
 import { TaxSummary } from "../pages/Invoices";
 import { sites } from "../../../shared/sites.js";
+function VariableNarrationTables({invoice}){
+ const fuel=invoice.lineItems.filter(l=>l.description.startsWith("Fuel reimbursement")),adc=invoice.lineItems.filter(l=>l.description.startsWith("Additional services"));
+ const remaining=invoice.lineItems.filter(l=>!fuel.includes(l)&&!adc.includes(l));
+ const vehicle=l=>(invoice.narration?.vehicles||[]).find(v=>v.vehicleNumber===l.vehicleNumber);
+ const table=(headers,rows)=><div className="sheet-scroll"><table className="trip-sheet"><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={index}>{row.map((cell,k)=><td key={k}>{cell}</td>)}</tr>)}</tbody></table></div>;
+ return <>
+ {fuel.length>0&&<><h3>Fuel cost</h3>{table(["Vehicle","Vehicle type","Total KM","Mileage (KM per litre / KG)","Fuel rate","Amount"],fuel.map(l=>{const v=vehicle(l);return [l.vehicleNumber,v?.agreement?.vehicleType||"",v?.metrics?.distanceKm??Number(l.quantity)*Number(v?.agreement?.mileage||0),v?.agreement?.mileage??"",currency(l.rate),currency(l.amount)];}))}<p>Fuel cost = total KM ÷ mileage × fuel rate.</p></>}
+ {adc.length>0&&<><h3>Additional service charges</h3>{table(["Vehicle","Vehicle type","No. of days (24 hours)","No. of shifts (8 hours)","Rate per shift","Amount"],adc.map(l=>[l.vehicleNumber,vehicle(l)?.agreement?.vehicleType||"",(Number(l.quantity)/3).toFixed(2),Number(l.quantity).toFixed(2),currency(l.rate),currency(l.amount)]))}</>}
+ {remaining.length>0&&<><h3>Other charges</h3>{table(["Vehicle","Description","Quantity","Rate","Amount","Tax treatment"],remaining.map(l=>[l.vehicleNumber||"Period",l.description,Number(l.quantity),currency(l.rate),currency(l.amount),l.taxable?"Taxable":"Other reimbursement"]))}</>}
+ </>;
+}
 export function Narration({invoice}) {
   return <section className="card"><h2>Narration / amount calculation</h2><p>{invoice.billingType}  /  {invoice.site}  /  {String(invoice.periodFrom).slice(0,10)} to {String(invoice.periodTo).slice(0,10)}</p>
-    <div className="sheet-scroll"><table className="trip-sheet"><thead><tr>{["Vehicle","Description","Quantity","Rate","Amount","Tax treatment"].map(h=><th key={h}>{h}</th>)}</tr></thead>
-    <tbody>{invoice.lineItems.map((l,index)=><tr key={index}><td>{l.vehicleNumber || "Period"}</td><td>{l.description}</td><td>{Number(l.quantity || 0).toFixed(4).replace(/\.?0+$/,"")}</td><td>{currency(l.rate)}</td><td>{currency(l.amount)}</td><td>{l.taxable ? "Taxable" : "Other reimbursement"}</td></tr>)}</tbody></table></div>
+    {invoice.billingType==="Variable" ? <VariableNarrationTables invoice={invoice}/> : <div className="sheet-scroll"><table className="trip-sheet"><thead><tr>{["Vehicle","Description","Quantity","Rate","Amount","Tax treatment"].map(h=><th key={h}>{h}</th>)}</tr></thead>
+    <tbody>{invoice.lineItems.map((l,index)=><tr key={index}><td>{l.vehicleNumber || "Period"}</td><td>{l.description}</td><td>{Number(l.quantity || 0).toFixed(4).replace(/\.?0+$/,"")}</td><td>{currency(l.rate)}</td><td>{currency(l.amount)}</td><td>{l.taxable ? "Taxable" : "Other reimbursement"}</td></tr>)}</tbody></table></div>}
     {(invoice.narration?.vehicles || []).map(v=><p key={v.vehicleId}>{v.vehicleNumber}: {v.agreement.name}{v.metrics.reason ? " - "+v.metrics.reason : ""}<br/>{invoice.billingType === "Variable" ?
       "Fuel basis: "+v.metrics.distanceKm+" KM / "+v.agreement.mileage+" mileage  x  "+currency(v.metrics.fuelRate ?? v.agreement.fuelRate) :
       "Shift: "+v.agreement.shiftHours+" hours  /  Contract KM: "+v.agreement.fixedKm+"  /  Rate: "+currency(v.agreement.fixedRate)}</p>)}
