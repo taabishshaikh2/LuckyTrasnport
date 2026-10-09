@@ -1,3 +1,7 @@
+import {parseBrandedWorkbook} from "../services/brandedImportService.js";
+import {references} from "./masters.js";
+import {BrandedLog,Customer,Audit} from "../models/index.js";
+import {sequence} from "../services/sequenceService.js";
 import { Router } from "express";
 import multer from "multer";
 import crypto from "node:crypto";
@@ -21,6 +25,24 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
 });
+r.post("/branded-logs",upload.single("file"),wrap(async(req,res)=>{
+ if(!req.file || !/\.(xlsx|xls)$/i.test(req.file.originalname))throw new AppError("Upload an Excel workbook");
+ const customerId=id.parse(req.body.customerId);if(!await Customer.exists({_id:customerId,archived:false}))throw new AppError("Select a billing customer");
+ const vehicles=await Vehicle.find({branded:true,archived:false}).lean();let parsed;
+ try{parsed=parseBrandedWorkbook(req.file.buffer,customerId,vehicles);}catch(e){throw new AppError(e.message);}
+ const intervals=new Map();
+ for(const row of parsed.rows){try{
+  await references("brandedLogs",row,null,true);
+  const start=+new Date(row.date)+Number(row.openingTime.slice(0,2))*3600000+Number(row.openingTime.slice(3))*60000;
+  const existing=intervals.get(row.vehicleId)||[];if(existing.some(a=>a<start+8*3600000 && a+8*3600000>start))throw new Error("Duplicate or overlapping shift inside this file");existing.push(start);intervals.set(row.vehicleId,existing);
+ }catch(e){parsed.errors.push({sheet:row.sheet,row:row.row,message:e.message});}}
+ if(req.body.confirm!=="true")return ok(res,parsed);
+ if(parsed.errors.length)throw new AppError("Fix all row errors before importing. No shifts were saved");
+ const count=await transaction(async(session)=>{
+  for(const row of parsed.rows){await references("brandedLogs",row,session);const logId=await sequence("brandedLogs","BLOG-",session);await BrandedLog.create([{...row,logId,createdBy:req.user._id,updatedBy:req.user._id}],{session});}
+  await Audit.create([{entity:"BrandedLog",reason:"Excel import: "+parsed.rows.length+" shifts",changedBy:req.user._id}],{session});return parsed.rows.length;
+ });ok(res,{count},201);
+}));
 const hash = (v) => crypto.createHash("sha256").update(v).digest("hex");
 const norm = (v) =>
   String(v || "")

@@ -1,3 +1,5 @@
+import XLSX from "xlsx-js-style";
+import {brandedHeaders} from "../services/brandedImportService.js";
 import { getCompanyProfile } from "../services/companyProfileService.js";
 import { Router } from "express";
 import { Trip, Invoice, BrandedLog,WeeklyOff,Vehicle } from "../models/index.js";
@@ -30,6 +32,11 @@ const send = (res, buffer, name, ext) =>
         '"',
     })
     .send(buffer);
+r.get("/branded-log-template.xlsx",wrap(async(req,res)=>{
+ const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet([brandedHeaders]);ws['!cols']=brandedHeaders.map(()=>({wch:22}));
+ for(const cell of Object.values(ws))if(cell&&typeof cell==='object'&&'v' in cell)cell.s={font:{bold:true},alignment:{wrapText:true}};
+ XLSX.utils.book_append_sheet(wb,ws,"Branded logs");send(res,XLSX.write(wb,{type:"buffer",bookType:"xlsx"}),"branded-log-template","xlsx");
+}));
 r.get("/branded-logs.xlsx",wrap(async(req,res)=>{
  const month=String(req.query.month||"");if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw new AppError("Select a log month");
  const from=new Date(month+"-01"),to=new Date(Date.UTC(from.getUTCFullYear(),from.getUTCMonth()+1,1));

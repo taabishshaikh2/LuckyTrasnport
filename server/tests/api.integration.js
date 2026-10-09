@@ -645,6 +645,15 @@ test(
       const imported=await post(url+"/preview",payload);assert.equal(imported.status,200,JSON.stringify(imported.body));assert.equal(imported.body.data.successfulRows,1,JSON.stringify(imported.body));
       assert.equal(imported.body.data.rows[0].calculation.totalAmount,2818);
     });
+    await t.test("branded Excel preview, atomic confirmation and repeat upload protection",async()=>{
+      const vehicle=(await post("/masters/vehicles",{vehicleNumber:"MH02IMPORT8",vehicleType:"8 FT",branded:true,shiftHours:8})).body.data;
+      const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Date","Vehicle no.","Opening KM","Closing KM","Total KM","Opening time","Closing time","Total hours","Additional service charges","Domestic airport entry"],["2026-09-01",vehicle.vehicleNumber,100,110,999,"07:00","15:00",999,999,250],["",vehicle.vehicleNumber,"Load held at warehouse","Load held at warehouse",999,"15:00","23:00",999,999,0]]),"Logs");const buffer=XLSX.write(wb,{type:"buffer",bookType:"xlsx"});
+      const upload=confirm=>request(app).post("/api/imports/branded-logs").set("Authorization","Bearer "+token).field("customerId",refs.customers._id).field("confirm",String(confirm)).attach("file",buffer,"logs.xlsx");
+      const preview=await upload(false);assert.equal(preview.status,200,JSON.stringify(preview.body));assert.equal(preview.body.data.errors.length,0);assert.deepEqual(preview.body.data.rows.map(r=>r.distanceKm),[10,0]);assert.equal(preview.body.data.rows[0].totalHours,8);
+      const confirmed=await upload(true);assert.equal(confirmed.status,201,JSON.stringify(confirmed.body));assert.equal(confirmed.body.data.count,2);
+      const duplicate=await upload(false);assert.equal(duplicate.body.data.errors.length,2);assert.equal((await upload(true)).status,400);
+      assert.equal((await get("/exports/branded-log-template.xlsx")).status,200);
+    });
     await t.test("branded shift logs calculate variable charges without sites or agreements",async()=>{
       const common={customerId:refs.customers._id};
       const vehicle=(await post("/masters/vehicles",{vehicleNumber:"MH02BRAND16",vehicleType:"TATA 407",branded:true,shiftHours:16,adcRate:1914,amcRate:2.5,parkingMonthly:3000,tollEntryMonthly:1000})).body.data;
@@ -667,6 +676,7 @@ test(
       assert.equal(metrics.actualHours,464);assert.equal(metrics.includedHours,416);assert.equal(metrics.additionalServices,6);
       assert.equal(data.lineItems.find(l=>l.description.startsWith("Additional services")).amount,11484);
       assert.equal(data.lineItems.find(l=>l.description.startsWith("AMC")).amount,2475);assert.equal(data.nonTaxableAmount,250);
+      assert.equal(data.lineItems.find(l=>l.description==="Monthly toll, entry & parking").amount,4000);
       assert.ok(!data.lineItems.some(l=>l.description==="Trip charges"));
       const issued=await post("/invoices",{...input,expectedTotal:data.totalAmount,reviewToken:data.reviewToken});assert.equal(issued.status,201,JSON.stringify(issued.body));
       const pdf=await get(`/exports/invoices/${issued.body.data._id}.pdf?section=narration`);assert.equal(pdf.status,200);

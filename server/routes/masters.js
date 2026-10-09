@@ -114,7 +114,7 @@ const permission = (req, res, next) =>
   ["routes", "rates", "agreements", "fleetRates", "tripRates", "fleetManagers"].includes(req.entity)
     ? admin(req, res, next)
     : operations(req, res, next);
-async function references(entity, v, session) {
+export async function references(entity, v, session, readOnly=false) {
   if (["brandedLogs","weeklyOffs"].includes(entity)) {
     const vehicle=await masters.vehicles.findOne({_id:v.vehicleId,branded:true,archived:false}).session(session);
     if (!vehicle) throw new AppError("Select a branded vehicle");
@@ -128,7 +128,7 @@ async function references(entity, v, session) {
     }
     const duplicate={vehicleId:v.vehicleId,date:v.date,archived:false,...(v._id?{_id:{$ne:v._id}}:{}),...(entity==="brandedLogs"?{openingTime:v.openingTime}:{})};
     if (await masters[entity].exists(duplicate).session(session)) throw new AppError("This shift / off date is already recorded",409);
-    await masters.vehicles.updateOne({_id:v.vehicleId},{$inc:{referenceVersion:1}},{session});
+    if(!readOnly) await masters.vehicles.updateOne({_id:v.vehicleId},{$inc:{referenceVersion:1}},{session});
   }
 
   if (["fleetRates","fuelCharges","vehicleExpenses","airportExpenses","fleetManagers"].includes(entity)) {
@@ -155,7 +155,7 @@ async function references(entity, v, session) {
 
     for (const [model,key] of [[masters.vehicles,"vehicleId"],[masters.customers,"customerId"]])
       if (!await model.exists({_id:v[key],archived:false}).session(session)) throw new AppError("Agreement reference unavailable");
-    await masters.vehicles.updateOne({_id:v.vehicleId},{$inc:{referenceVersion:1}},{session});
+    if(!readOnly) await masters.vehicles.updateOne({_id:v.vehicleId},{$inc:{referenceVersion:1}},{session});
     const overlaps = await masters.agreements.exists({ vehicleId:v.vehicleId, customerId:v.customerId,
       site:v.site, active:true, archived:false, ...(v._id ? {_id:{$ne:v._id}} : {}),
       effectiveFrom:{$lte:v.effectiveTo || new Date("9999-12-31")},

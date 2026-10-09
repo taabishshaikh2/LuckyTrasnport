@@ -28,8 +28,7 @@ export async function prepareBrandedVariable(input,session) {
   }
   if(metrics.additionalServices && !vehicle.adcRate)throw new AppError("Set the ADC rate per 8-hour shift on "+vehicle.vehicleNumber);
   add("Additional services / 8-hour shifts",metrics.additionalServices,vehicle.adcRate);
-  add("Monthly parking",1,vehicle.parkingMonthly);
-  add("Monthly toll / entry",1,vehicle.tollEntryMonthly);
+  add("Monthly toll, entry & parking",1,Number(vehicle.parkingMonthly||0)+Number(vehicle.tollEntryMonthly||0));
   const airportRates=new Map();for(const log of logs)if(log.airportFee>0)airportRates.set(log.airportFee,(airportRates.get(log.airportFee)||0)+1);
   for(const [entryFee,count] of airportRates)add("Airport entry reimbursement",count,entryFee,false);
   add("AMC per actual kilometre",metrics.distanceKm,vehicle.amcRate);

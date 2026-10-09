@@ -108,7 +108,7 @@ export const config = {
     fields: [
 
       f("vehicleNumber", "Vehicle number"),
-      f("branded","Branded vehicle","checkbox"),f("adcRate","ADC rate per 8-hour shift","number"),f("amcRate","AMC rate per KM","number"),f("parkingMonthly","Monthly parking charge","number"),f("tollEntryMonthly","Monthly toll / entry charge","number"),f("shiftHours","Assigned shift (save once)"),
+      f("branded","Branded vehicle","checkbox"),f("adcRate","ADC rate per 8-hour shift","number"),f("amcRate","AMC rate per KM","number"),f("parkingMonthly","Monthly toll, entry & parking charge","number"),f("shiftHours","Assigned shift (save once)"),
 
       f("vehicleType", "Vehicle type", "text", [
 
