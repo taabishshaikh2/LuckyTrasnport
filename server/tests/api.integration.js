@@ -645,6 +645,19 @@ test(
       const imported=await post(url+"/preview",payload);assert.equal(imported.status,200,JSON.stringify(imported.body));assert.equal(imported.body.data.successfulRows,1,JSON.stringify(imported.body));
       assert.equal(imported.body.data.rows[0].calculation.totalAmount,2818);
     });
+    await t.test("weekly offs save and edit all vehicle dates together",async()=>{
+      const vehicle=(await post("/masters/vehicles",{vehicleNumber:"MH02OFFGROUP",vehicleType:"8 FT",branded:true,shiftHours:8})).body.data;
+      const input={customerId:refs.customers._id,vehicleId:vehicle._id,month:"2026-09",dates:["2026-09-06","2026-09-13","2026-09-20","2026-09-27"],expectedRows:[]};
+      const put=v=>request(app).put("/api/masters/weeklyOffs/month").set("Authorization","Bearer "+token).send(v);
+      assert.equal((await put(input)).status,200);
+      const rows=(await get("/masters/weeklyOffs?month=2026-09")).body.data.filter(r=>r.vehicleId===vehicle._id);assert.equal(rows.length,4);
+      assert.equal((await put(input)).status,409);
+      const edit={...input,expectedRows:rows.map(r=>({_id:r._id,updatedAt:r.updatedAt})),dates:["2026-09-06","2026-09-13","2026-09-20","2026-09-28"]};
+      assert.equal((await put({...edit,dates:["2026-09-06","2026-09-06"]})).status,400);
+      assert.equal((await put({...edit,dates:["2026-10-01"]})).status,400);
+      assert.equal((await put(edit)).status,200);
+      const saved=(await get("/masters/weeklyOffs?month=2026-09")).body.data.filter(r=>r.vehicleId===vehicle._id);assert.deepEqual(saved.map(r=>r.date.slice(0,10)).sort(),edit.dates);
+    });
     await t.test("branded Excel preview, atomic confirmation and repeat upload protection",async()=>{
       const vehicle=(await post("/masters/vehicles",{vehicleNumber:"MH02IMPORT8",vehicleType:"8 FT",branded:true,shiftHours:8})).body.data;
       const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Date","Vehicle no.","Opening KM","Closing KM","Total KM","Opening time","Closing time","Total hours","Additional service charges","Domestic airport entry"],["2026-09-01",vehicle.vehicleNumber,100,110,999,"07:00","15:00",999,999,250],["",vehicle.vehicleNumber,"Load held at warehouse","Load held at warehouse",999,"15:00","23:00",999,999,0]]),"Logs");const buffer=XLSX.write(wb,{type:"buffer",bookType:"xlsx"});
@@ -668,13 +681,13 @@ test(
         const row=await post("/masters/brandedLogs",{...shift,date:"2026-06-"+String(day).padStart(2,"0"),openingTime:second?"15:00":"07:00",closingTime:second?"23:00":"15:00",held:true,holdLocation:"Loading warehouse",airportFee:0});assert.equal(row.status,201,JSON.stringify(row.body));assert.equal(row.body.data.distanceKm,0);
       }
       const exported=await get("/exports/branded-logs.xlsx?month=2026-06&vehicleId="+vehicle._id).buffer(true).parse((res,done)=>{const chunks=[];res.on("data",b=>chunks.push(b));res.on("end",()=>done(null,Buffer.concat(chunks)));res.on("error",done);});assert.equal(exported.status,200);
-      const wb=XLSX.read(exported.body,{type:"buffer"});const sheet=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.equal(sheet[2].length,10);assert.equal(sheet.at(-1)[8],11484);
+      const wb=XLSX.read(exported.body,{type:"buffer"});const sheet=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.equal(sheet[10].length,10);assert.equal(sheet[0][0],"Vendor name");assert.equal(sheet[4][9],11484);assert.equal(sheet.at(-1)[8],11484);
       for(const day of [7,14,21,28])assert.equal((await post("/masters/weeklyOffs",{...common,vehicleId:vehicle._id,date:"2026-06-"+String(day).padStart(2,"0")})).status,201);
       const input={...common,site:"Branded",billingType:"Variable",vehicleIds:[vehicle._id],periodFrom:"2026-06-01",periodTo:"2026-06-30",invoiceDate:"2026-07-01",dueDate:"2026-08-01",stateCode:"27",placeOfSupply:"Maharashtra",cgstRate:9,sgstRate:9,taxConfirmed:true,roundToRupee:false};
       const preview=await post("/invoices/preview",input);assert.equal(preview.status,200,JSON.stringify(preview.body));
       const data=preview.body.data,metrics=data.narration.vehicles[0].metrics;
-      assert.equal(metrics.actualHours,464);assert.equal(metrics.includedHours,416);assert.equal(metrics.additionalServices,6);
-      assert.equal(data.lineItems.find(l=>l.description.startsWith("Additional services")).amount,11484);
+      assert.equal(metrics.actualHours,464);assert.equal(metrics.includedHours,416);assert.equal(metrics.additionalServices,8);
+      assert.equal(data.lineItems.find(l=>l.description.startsWith("Additional services")).amount,15312);
       assert.equal(data.lineItems.find(l=>l.description.startsWith("AMC")).amount,2475);assert.equal(data.nonTaxableAmount,250);
       assert.equal(data.lineItems.find(l=>l.description==="Monthly toll, entry & parking").amount,4000);
       assert.ok(!data.lineItems.some(l=>l.description==="Trip charges"));

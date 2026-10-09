@@ -1,3 +1,4 @@
+import {brandedAdc} from "../../shared/brandedLogs.js";
 import {Vehicle,BrandedLog,WeeklyOff,FuelCharge} from "../models/index.js";
 import {AppError} from "../utils/errors.js";
 import {money} from "./tripCalculationService.js";
@@ -17,6 +18,8 @@ export async function prepareBrandedVariable(input,session) {
   const offs=await WeeklyOff.find({vehicleId,customerId:input.customerId,archived:false,date:{$gte:from,$lte:to}}).session(session||null).lean();
   const sum=(key)=>logs.reduce((s,l)=>s+Number(l[key]||0),0);
   const metrics={...brandedDuty(sum("totalHours"),vehicle.shiftHours,from,to,offs.length?offs.length:undefined),distanceKm:sum("distanceKm"),airportFee:sum("airportFee"),logs};
+  const adc=brandedAdc(logs,metrics.includedHours,offs);
+  Object.assign(metrics,{monthlyExtraMinutes:metrics.extraMinutes,offDutyMinutes:adc.offDutyMinutes,regularExtraMinutes:adc.regularExtraMinutes,extraMinutes:adc.extraMinutes,additionalServices:adc.additionalServices,extraDays:adc.extraMinutes/1440});
   const sources=[{model:"Vehicle",record:vehicle},...logs.map(record=>({model:"BrandedLog",record})),...offs.map(record=>({model:"WeeklyOff",record}))];
   const agreement={name:"Saved branded vehicle rates",vehicleType:vehicle.customVehicleType||vehicle.vehicleType,shiftHours:vehicle.shiftHours,serviceRate:vehicle.adcRate||0,amcRate:vehicle.amcRate||0};
   const add=(description,quantity,rate,taxable=true)=>{if(quantity && rate)lines.push({vehicleId,vehicleNumber:vehicle.vehicleNumber,description,quantity,rate,amount:money(quantity*rate),taxable});};
@@ -32,7 +35,7 @@ export async function prepareBrandedVariable(input,session) {
   const airportRates=new Map();for(const log of logs)if(log.airportFee>0)airportRates.set(log.airportFee,(airportRates.get(log.airportFee)||0)+1);
   for(const [entryFee,count] of airportRates)add("Airport entry reimbursement",count,entryFee,false);
   add("AMC per actual kilometre",metrics.distanceKm,vehicle.amcRate);
-  metrics.reason=`${metrics.days} days - ${metrics.weeklyOffs} weekly offs; included ${metrics.includedHours} hours; actual ${metrics.actualHours} hours; extra ${metrics.extraMinutes} minutes / 480 = ${metrics.additionalServices} shifts`;
+  metrics.reason=`${metrics.days} days - ${metrics.weeklyOffs} weekly offs; included ${metrics.includedHours} hours; actual ${metrics.actualHours} hours; weekly-off duty ${metrics.offDutyMinutes} minutes + other excess duty ${metrics.regularExtraMinutes} minutes = ${metrics.extraMinutes} minutes / 480 = ${metrics.additionalServices} shifts`;
   vehicles.push({vehicleId,vehicleNumber:vehicle.vehicleNumber,agreement,metrics,sources,tripCount:logs.length});
   for(let day=+from;day<=+to;day+=86400000)keys.push([input.customerId,input.site,vehicleId,"Variable",new Date(day).toISOString().slice(0,10)].join(":"));
  }

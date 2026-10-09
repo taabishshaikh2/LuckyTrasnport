@@ -1,8 +1,9 @@
+import {getShiftSettings} from "../services/shiftSettingsService.js";
 import XLSX from "xlsx-js-style";
 import {brandedHeaders} from "../services/brandedImportService.js";
 import { getCompanyProfile } from "../services/companyProfileService.js";
 import { Router } from "express";
-import { Trip, Invoice, BrandedLog,WeeklyOff,Vehicle } from "../models/index.js";
+import { Trip, Invoice, BrandedLog,WeeklyOff,Vehicle,FleetRate,FuelCharge } from "../models/index.js";
 import { operations } from "../middleware/auth.js";
 import { id } from "../validators/index.js";
 import {
@@ -43,7 +44,8 @@ r.get("/branded-logs.xlsx",wrap(async(req,res)=>{
  const filter={archived:false,date:{$gte:from,$lt:to},...(req.query.vehicleId?{vehicleId:id.parse(req.query.vehicleId)}:{})};
  const logs=await BrandedLog.find(filter).sort({date:1,openingTime:1}).lean();if(!logs.length)throw new AppError("No branded logs match the selected month",404);
  const vehicles=await Vehicle.find({_id:{$in:logs.map(l=>l.vehicleId)}}).lean(),offs=await WeeklyOff.find(filter).lean();
- send(res,brandedWorkbook(logs,vehicles,offs),"branded-shift-log","xlsx");
+ const [company,shifts,rates,fuels]=await Promise.all([getCompanyProfile(),getShiftSettings(),FleetRate.find({archived:false,active:true,customerId:{$in:logs.map(l=>l.customerId)}}).lean(),FuelCharge.find({archived:false,vehicleId:{$in:logs.map(l=>l.vehicleId)}}).lean()]);
+ send(res,brandedWorkbook(logs,vehicles,offs,{company,shifts:shifts.entries,rates,fuels}),"branded-shift-log","xlsx");
 }));
 r.get(
   "/import-template.xlsx",
@@ -66,8 +68,8 @@ r.get(
       if (i.tripSnapshot?.length || i.narration?.vehicles?.length) {
         const branded=i.narration?.vehicles?.filter(v=>v.metrics?.logs?.length);
       if(branded?.length){
-        const logs=branded.flatMap(v=>v.metrics.logs),vehicles=branded.map(v=>({_id:v.vehicleId,vehicleNumber:v.vehicleNumber,shiftHours:v.agreement.shiftHours,adcRate:v.agreement.serviceRate,includedHours:v.metrics.includedHours})),offs=branded.flatMap(v=>(v.sources||[]).filter(s=>s.model==="WeeklyOff").map(s=>s.record));
-        return send(res,brandedWorkbook(logs,vehicles,offs),i.invoiceNumber+"-branded-log","xlsx");
+        const logs=branded.flatMap(v=>v.metrics.logs),vehicles=branded.map(v=>({_id:v.vehicleId,vehicleNumber:v.vehicleNumber,shiftHours:v.agreement.shiftHours,adcRate:v.agreement.serviceRate,includedHours:v.metrics.includedHours,vehicleType:v.agreement.vehicleType,amcRate:v.agreement.amcRate,snapshot:v})),offs=branded.flatMap(v=>(v.sources||[]).filter(s=>s.model==="WeeklyOff").map(s=>s.record));
+        return send(res,brandedWorkbook(logs,vehicles,offs,{company:i.companySnapshot,invoice:i}),i.invoiceNumber+"-branded-log","xlsx");
       }
       const profile=i.site;
         return send(res,profile ? siteWorkbook(i.tripSnapshot || [],profile,i) : await tripWorkbook(i.tripSnapshot || []),i.invoiceNumber + "-supporting","xlsx");

@@ -24,6 +24,27 @@ const meta = {brandedLogs:["logId","BLOG-"],weeklyOffs:["offId","OFF-"],
   routes: ["routeId", "R"],
   rates: ["rateId", "RATE-"],
 };
+r.put("/weeklyOffs/month",operations,wrap(async(req,res)=>{
+ const customerId=id.parse(req.body.customerId),vehicleId=id.parse(req.body.vehicleId),month=String(req.body.month||"");
+ if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)||!Array.isArray(req.body.dates)||req.body.dates.length>31)throw new AppError("Choose a month and valid off dates");
+ const dates=req.body.dates.map(date=>masterSchemas.weeklyOffs.parse({customerId,vehicleId,date}).date);
+ if(new Set(dates).size!==dates.length)throw new AppError("Each off date must appear only once");
+ if(dates.some(date=>!date.startsWith(month+"-")))throw new AppError("All off dates must belong to the selected month");
+ const from=new Date(month+"-01"),to=new Date(Date.UTC(from.getUTCFullYear(),from.getUTCMonth()+1,1));
+ const saved=await transaction(async(session)=>{
+  if(!await masters.customers.exists({_id:customerId,archived:false}).session(session))throw new AppError("Customer unavailable");
+  const vehicle=await masters.vehicles.findOneAndUpdate({_id:vehicleId,branded:true,archived:false},{$inc:{referenceVersion:1}},{session,new:true});if(!vehicle)throw new AppError("Select a branded vehicle");
+  const existing=await masters.weeklyOffs.find({customerId,vehicleId,archived:false,date:{$gte:from,$lt:to}}).session(session);
+  const revision=rows=>JSON.stringify(rows.map(r=>({id:String(r._id),updatedAt:new Date(r.updatedAt).toISOString()})).sort((a,b)=>a.id.localeCompare(b.id)));
+  if(!Array.isArray(req.body.expectedRows)||revision(existing)!==revision(req.body.expectedRows))throw new AppError("Off dates changed. Reload and review before saving",409);
+  for(const row of existing)if(!dates.includes(row.date.toISOString().slice(0,10))){await references("weeklyOffs",{...row.toObject(),_id:String(row._id)},session);row.archived=true;row.updatedBy=req.user._id;await row.save({session});}
+  for(const date of dates)if(!existing.some(row=>row.date.toISOString().slice(0,10)===date)){
+   const v=masterSchemas.weeklyOffs.parse({customerId,vehicleId,date});await references("weeklyOffs",v,session);const offId=await sequence("weeklyOffs","OFF-",session);await masters.weeklyOffs.create([{...v,offId,createdBy:req.user._id,updatedBy:req.user._id}],{session});
+  }
+  await Audit.create([{entity:"WeeklyOff",entityId:vehicleId,previousValue:existing.map(row=>row.date),newValue:dates,reason:"Vehicle monthly off dates saved",changedBy:req.user._id}],{session});
+  return {count:dates.length};
+ });ok(res,saved);
+}));
 r.get(
   "/users",
   admin,

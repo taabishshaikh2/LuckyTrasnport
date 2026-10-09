@@ -1,4 +1,4 @@
-import {logAdcAmounts} from "../../shared/brandedLogs.js";
+import {logAdcAmounts,brandedAdc} from "../../shared/brandedLogs.js";
 import XLSX from "xlsx-js-style";
 import { sites, siteColumns, durationText } from "../../shared/sites.js";
 import { AppError } from "../utils/errors.js";
@@ -189,17 +189,44 @@ export async function tripWorkbook(trips) {
   return bookBuffer(rows, "Trips");
 }
 
-export function brandedWorkbook(logs,vehicles,offs=[]){
+export function brandedWorkbook(logs,vehicles,offs=[],context={}){
  const wb=XLSX.utils.book_new();
  const groups=new Map();for(const l of logs){const key=String(l.vehicleId)+":"+String(l.customerId)+":"+new Date(l.date).toISOString().slice(0,7);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(l);}
  let sheetIndex=0;
  for(const rows of groups.values()){
   const v=vehicles.find(v=>String(v._id)===String(rows[0].vehicleId)),month=new Date(rows[0].date).toISOString().slice(0,7);
   const off=offs.filter(o=>String(o.vehicleId)===String(v._id)&&String(o.customerId)===String(rows[0].customerId)&&new Date(o.date).toISOString().slice(0,7)===month);
-  const adc=logAdcAmounts(rows,v.shiftHours,v.adcRate||0,off.length||undefined,v.includedHours);
-  const data=[["LUCKY TRANSPORT SERVICES - BRANDED SHIFT LOG"],["Vehicle",v.vehicleNumber,"Month",month,"Assigned duty hours",v.shiftHours],["Date","Vehicle no.","Opening KM","Closing KM","Total KM","Opening time","Closing time","Total hours","Additional service charges","Domestic airport entry"],...rows.map(l=>[new Date(l.date).toISOString().slice(0,10),v.vehicleNumber,l.held?"Loaded / held: "+l.holdLocation:l.openingKm,l.held?l.holdLocation:l.closingKm,l.distanceKm,l.openingTime,l.closingTime,l.totalHours,adc.get(String(l._id))||0,l.airportFee||0]),["TOTAL","","","",rows.reduce((s,l)=>s+l.distanceKm,0),"","",rows.reduce((s,l)=>s+l.totalHours,0),Array.from(adc.values()).reduce((a,b)=>a+b,0),rows.reduce((s,l)=>s+Number(l.airportFee||0),0)]];
-  const ws=XLSX.utils.aoa_to_sheet(data);ws['!cols']=[14,18,25,23,12,15,15,14,20,20].map(wch=>({wch}));ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:9}}];
-  for(const key of Object.keys(ws)){if(key.startsWith('!'))continue;const row=XLSX.utils.decode_cell(key).r;ws[key].s={font:{name:'Arial',sz:10,bold:row<=2||row===data.length-1},alignment:{vertical:'center',wrapText:true},border:Object.fromEntries(['top','bottom','left','right'].map(k=>[k,{style:'thin',color:{rgb:'333333'}}]))};}
+  const adc=logAdcAmounts(rows,v.shiftHours,v.adcRate||0,off.length||undefined,v.includedHours,off);
+  const km=rows.reduce((s,l)=>s+Number(l.distanceKm||0),0),hours=rows.reduce((s,l)=>s+Number(l.totalHours||0),0),adcTotal=Array.from(adc.values()).reduce((a,b)=>a+b,0),airportTotal=rows.reduce((s,l)=>s+Number(l.airportFee||0),0);
+  const start=new Date(month+'-01'),end=new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth()+1,0)),days=end.getUTCDate();
+  const type=v.customVehicleType||v.vehicleType||'',agreement=v.snapshot?.agreement;
+  const matching=(context.rates||[]).filter(r=>String(r.customerId)===String(rows[0].customerId)&&[type,v.vehicleType].includes(r.vehicleType)&&r.shiftHours===v.shiftHours&&new Date(r.effectiveFrom)<=start&&(!r.effectiveTo||new Date(r.effectiveTo)>=end));
+  const fixedKm=agreement?.fixedKm??context.shifts?.find(s=>s.hours===v.shiftHours)?.monthlyKm, fixedRate=agreement?.fixedRate??(matching.length===1?matching[0].fixedRate:undefined);
+  const fuelRecords=(context.fuels||[]).filter(f=>String(f.customerId)===String(rows[0].customerId)&&String(f.vehicleId)===String(v._id)&&new Date(f.periodFrom)<=new Date(rows[0].date)&&new Date(f.periodTo)>=new Date(rows.at(-1).date));
+  const fuel=fuelRecords.length===1?fuelRecords[0]:undefined,mileage=agreement?.mileage??fuel?.mileage,fuelRate=agreement?.fuelRate??fuel?.fuelRate;
+  const charge=prefix=>context.invoice?.lineItems?.filter(l=>l.vehicleNumber===v.vehicleNumber&&l.description.startsWith(prefix)).reduce((s,l)=>s+Number(l.amount),0);
+  const fuelAmount=charge('Fuel reimbursement')??(km===0?0:mileage>0&&fuelRate!=null?Math.round(km/mileage*fuelRate*100)/100:undefined);
+  const amc=charge('AMC')??Math.round(km*Number(v.amcRate||0)*100)/100,parking=charge('Monthly')??Number(v.parkingMonthly||0)+Number(v.tollEntryMonthly||0);
+  const variableTotal=fuelAmount==null?'Fuel rate / mileage not set':Math.round((fuelAmount+adcTotal+airportTotal+amc+parking)*100)/100;
+  const extraShifts=brandedAdc(rows,v.includedHours??(days-(off.length||Math.floor(days/7)))*v.shiftHours,off).additionalServices;
+  const airportEntries=rows.filter(l=>l.airportFee>0),airportRates=new Set(airportEntries.map(l=>l.airportFee));
+  const data=[
+   ['Vendor name',context.company?.name||'LUCKY TRANSPORT SERVICES','','','','Fixed','No. of days','KM','Rate','Amount'],
+   ['Vehicle type',type,'','','','Monthly fixed',days,fixedKm??'Not set',fixedRate??'Not set',fixedKm!=null&&fixedRate!=null?Math.round(fixedKm*fixedRate*100)/100:'Not set'],
+   ['Vehicle no.',v.vehicleNumber,'','','','Variable','Mileage','Details / quantity','Rate','Amount'],
+   ['Month',month,'','','','Fuel cost',mileage??'Not set',km,fuelRate??'Not set',fuelAmount??'Not set'],
+   ['Assigned duty',v.shiftHours+' hours','','','','Additional service charges',Number((extraShifts/3).toFixed(2)),Number(extraShifts.toFixed(4)),v.adcRate||0,adcTotal],
+   ['Weekly offs',off.length||Math.floor(days/7),'','','','Domestic airport entry','',airportEntries.length,airportRates.size===1?airportEntries[0].airportFee:airportRates.size?'Mixed':0,airportTotal],
+   ['','','','','','Toll, entry & parking','','1','',parking],
+   ['','','','','','AMC charges','',km,v.amcRate||0,amc],
+   ['','','','','','Total variable (before GST)','','','',variableTotal],
+   ['LOG SHEET - '+type+' - '+v.vehicleNumber+' BRANDED'],
+   ["Date","Vehicle no.","Opening KM","Closing KM","Total KM","Opening time","Closing time","Total hours","Additional service charges","Domestic airport entry"],
+   ...rows.map(l=>[new Date(l.date).toISOString().slice(0,10),v.vehicleNumber,l.held?"Loaded / held: "+l.holdLocation:l.openingKm,l.held?l.holdLocation:l.closingKm,l.distanceKm,l.openingTime,l.closingTime,l.totalHours,adc.get(String(l._id))||0,l.airportFee||0]),
+   ["TOTAL","","","",km,"","",hours,adcTotal,airportTotal]];
+  const ws=XLSX.utils.aoa_to_sheet(data);ws['!cols']=[14,18,25,23,12,15,15,14,20,20].map(wch=>({wch}));ws['!merges']=[{s:{r:9,c:0},e:{r:9,c:9}},...Array.from({length:6},(_,r)=>({s:{r,c:1},e:{r,c:4}}))];
+  ws['!rows']=data.map((_,r)=>({hpt:r<9?30:r===10?38:24}));
+  for(const key of Object.keys(ws)){if(key.startsWith('!'))continue;const row=XLSX.utils.decode_cell(key).r,col=XLSX.utils.decode_cell(key).c;ws[key].s={font:{name:'Arial',sz:10,bold:row<3||row===8||row===9||row===10||row===data.length-1},alignment:{vertical:'center',wrapText:true},...(row>=9?{border:Object.fromEntries(['top','bottom','left','right'].map(k=>[k,{style:'thin',color:{rgb:'333333'}}]))}:{}),...(row===10?{fill:{fgColor:{rgb:'E8EDF2'}}}:{})};if(typeof ws[key].v==='number'&&((row<9&&col===9)||(row>=11&&col>=8)))ws[key].z='#,##0.00';}
   XLSX.utils.book_append_sheet(wb,ws,(v.vehicleNumber+'-'+month+'-'+ ++sheetIndex).slice(0,31));
  }
  return XLSX.write(wb,{type:'buffer',bookType:'xlsx'});

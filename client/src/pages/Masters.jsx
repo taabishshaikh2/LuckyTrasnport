@@ -35,7 +35,7 @@ export default function Masters({ entity, user }) {
 
   const offDates=useData("/masters/weeklyOffs?month="+logMonth);
   const adcAmounts=new Map();
-  for(const v of vehicles.data||[]){const rows=(records.data||[]).filter(l=>l.vehicleId===v._id && String(l.date).slice(0,7)===logMonth);for(const customerId of new Set(rows.map(l=>l.customerId))){const selected=rows.filter(l=>l.customerId===customerId);const offs=(offDates.data||[]).filter(o=>o.vehicleId===v._id && o.customerId===customerId && String(o.date).slice(0,7)===logMonth);for(const [id,amount] of logAdcAmounts(selected,v.shiftHours,v.adcRate||0,offs.length||undefined))adcAmounts.set(id,amount);}}
+  for(const v of vehicles.data||[]){const rows=(records.data||[]).filter(l=>l.vehicleId===v._id && String(l.date).slice(0,7)===logMonth);for(const customerId of new Set(rows.map(l=>l.customerId))){const selected=rows.filter(l=>l.customerId===customerId);const offs=(offDates.data||[]).filter(o=>o.vehicleId===v._id && o.customerId===customerId && String(o.date).slice(0,7)===logMonth);for(const [id,amount] of logAdcAmounts(selected,v.shiftHours,v.adcRate||0,offs.length||undefined,undefined,offs))adcAmounts.set(id,amount);}}
   const [search, setSearch] = useState(""),
 
     [filter, setFilter] = useState(""),
@@ -210,7 +210,7 @@ export default function Masters({ entity, user }) {
       </div>
 
       {entity === "weeklyOffs" && <p>Without off dates, billing allows one weekly off per seven days (four in a full month). When off dates are logged, billing uses those dates. Each off removes the vehicle's assigned 8/16/24 duty hours from included hours.</p>}
-      {entity === "brandedLogs" && <p>One row = one 8-hour shift. Total KM = closing minus opening. Loaded / held rows have zero KM. ADC is calculated from the monthly excess duty hours; airport entry fees remain outside GST.</p>}
+      {entity === "brandedLogs" && <p>One row = one 8-hour shift. Total KM = closing minus opening. Loaded / held rows have zero KM. Shifts worked on logged weekly-off dates incur ADC immediately. Other excess duty is calculated monthly without counting off-day shifts twice; airport entry fees remain outside GST.</p>}
       {entity === "tripRates" && <p>For Adhoc trips only. Save once per vehicle type. Trips automatically use the distance band and additional-hour cost. Above 150 KM, the per-KM rate applies to the whole trip distance. Overtime uses exact minutes beyond the trip's included hours.</p>}
 
       {entity === "agreements" && <p>Select the vehicle and rate chart. Included monthly KM: 8 hours = 3,000; 16 = 4,000; 24 = 5,000. Fuel and expenses have their own pages.</p>}

@@ -1,3 +1,4 @@
+import WeeklyOffs from "./pages/WeeklyOffs";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -123,7 +124,7 @@ function App() {
               "drivers",
               "customers",
               "routes",
-              "brandedLogs", "weeklyOffs", "fleetManagers", "fleetRates", "fuelCharges", "vehicleExpenses", "airportExpenses",
+              "brandedLogs", "fleetManagers", "fleetRates", "fuelCharges", "vehicleExpenses", "airportExpenses",
               "agreements",
               ...(user.role === "ADMIN" ? ["users"] : []),
             ].map((entity) => (
@@ -133,6 +134,7 @@ function App() {
                 element={<Masters key={entity} entity={entity} user={user} />}
               />
             ))}
+            <Route path="weeklyOffs" element={<WeeklyOffs/>}/>
             <Route path="rates" element={<RateChart user={user}/>} />
             <Route path="invoices" element={<InvoiceList />} />
             <Route path="invoices/new" element={<InvoiceForm />} />
