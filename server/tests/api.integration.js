@@ -756,3 +756,15 @@ test("trip archive hides records and supports restoration", async () => {
         assert.equal((await post("/trips/"+trip._id+"/archive",{archived:true})).status,409);
       } finally { await Trip.deleteOne({_id:trip._id}); }
     });
+
+test("site pages and Excel include only the chosen site and inclusive date range",async()=>{
+ const fixture=[{tripId:"SITE-JUL-IN",site:"Inbound",periodFrom:new Date("2030-07-31"),vehicleNumber:"FILTER-IN"},{tripId:"SITE-JUL-OUT",site:"Outbound",periodFrom:new Date("2030-07-31"),vehicleNumber:"FILTER-OUT"},{tripId:"SITE-AUG-IN",site:"Inbound",periodFrom:new Date("2030-08-01"),vehicleNumber:"FILTER-AUG"}];
+ const docs=await Trip.create(fixture.map(t=>({...t,adhocService:"City",status:"Draft",vehicleType:"8 FT",baseAmount:100,totalHours:8,overtimeHours:0,entries:[{date:t.periodFrom,chaName:"CHA",openingTime:"08:00",closingTime:"16:00"}]})));
+ const get=url=>request(app).get("/api"+url).set("X-Forwarded-For","203.0.113.21").set("Authorization","Bearer "+token);
+ try{
+  const q="site=Inbound&from=2030-07-01&to=2030-07-31";
+  const list=await get("/trips?"+q);assert.equal(list.status,200);assert.deepEqual(list.body.data.map(t=>t.tripId),["SITE-JUL-IN"]);
+  const file=await get("/exports/trips.xlsx?"+q).buffer(true).parse((res,done)=>{const chunks=[];res.on("data",b=>chunks.push(b));res.on("end",()=>done(null,Buffer.concat(chunks)));res.on("error",done);});assert.equal(file.status,200);
+  const wb=XLSX.read(file.body,{type:"buffer"});assert.equal(wb.SheetNames.length,1);const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.ok(rows.some(row=>row.includes("FILTER-IN")));assert.ok(!rows.some(row=>row.includes("FILTER-OUT")||row.includes("FILTER-AUG")));
+ }finally{await Trip.deleteMany({_id:{$in:docs.map(t=>t._id)}});}
+});

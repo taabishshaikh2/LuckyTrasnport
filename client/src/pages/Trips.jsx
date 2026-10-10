@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useData } from "../hooks/useData";
 import { api, message, download } from "../api/client";
 import {
@@ -19,159 +19,25 @@ import TripTable from "../features/TripTable";
 import { durationText } from "../../../shared/sites.js";
 import { sites } from "../../../shared/sites.js";
 export function TripList({ user }) {
-  const [showArchived,setShowArchived]=useState(false);
-  const records = useData("/trips?archived="+showArchived),
-    [site,setSite]=useState(""),
-    [search, setSearch] = useState(""),
-    [status, setStatus] = useState(""),
-    [from, setFrom] = useState(""),
-    [to, setTo] = useState(""),
-    [exportError, setExportError] = useState(""),
-    [exporting, setExporting] = useState(false);
-  const exportableTrips = (records.data || []).filter(
-    (t) =>
-      (!site || t.site === site) &&
-      (!status || t.status === status) &&
-      (!from || t.periodFrom.slice(0, 10) >= from) &&
-      (!to || t.periodFrom.slice(0, 10) <= to),
-  );
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">OPERATIONS</p>
-          <h1>Trips & challans</h1>
-        </div>
-        {user.role !== "DRIVER" && (
-          <><Link className="button" to="/brandedLogs?new">+ Branded shift</Link>
-          <Link className="button" to="/trips/new">
-            + Adhoc trip
-          </Link></>
-        )}
-      </div>
-      <Field name="site" label="Site" options={[{value:"",label:"All sites"},...sites]} value={site} onChange={(_,v)=>setSite(v)} />
-      {user.role !== "DRIVER" && <label><input type="checkbox" checked={showArchived} onChange={e=>setShowArchived(e.target.checked)}/> Show archived trips</label>}
-      <div className="filters">
-        <input
-          placeholder="Search ID, customer, vehicle, route or driver…"
-          aria-label="Search trips"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select
-          aria-label="Trip status"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        >
-          <option value="">All statuses</option>
-          {[
-            "Draft",
-            "Submitted",
-            "Approved",
-            "Completed",
-            "Invoiced",
-            "Cancelled",
-          ].map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </select>
-        <input
-          aria-label="From date"
-          type="date"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-        />
-        <input
-          aria-label="To date"
-          type="date"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-        />
-      </div>
-      {user.role !== "DRIVER" && (
-        <div className="actions">
-          <Link className="button quiet" to="/import">
-            Bulk import
-          </Link>
-          <button
-            className="quiet"
-            disabled={
-              showArchived || records.loading ||
-              !!records.error ||
-              exporting ||
-              !exportableTrips.length
-            }
-            title={
-              !exportableTrips.length
-                ? "No trips match the date / status filters"
-                : "Download matching trips"
-            }
-            onClick={async () => {
-              setExporting(true);
-              setExportError("");
-              try {
-                const q = new URLSearchParams({ from, to, status, site });
-                await download("/exports/trips.xlsx?" + q, "trips.xlsx");
-              } catch (e) {
-                setExportError(message(e));
-              } finally {
-                setExporting(false);
-              }
-            }}
-          >
-            {exporting ? "Exporting…" : "Export Excel (date / status filters)"}
-          </button>
-        </div>
-      )}
-      {exportError && <p className="error">{exportError}</p>}
-      <State {...records}>
-        <TripTable trips={exportableTrips.filter(t=>JSON.stringify(t).toLowerCase().includes(search.toLowerCase()))} />
-        <div className="card-grid">
-          {records.data
-            ?.filter(
-              (t) =>
-                JSON.stringify(t)
-                  .toLowerCase()
-                  .includes(search.toLowerCase()) &&
-                (!site || t.site === site) &&
-      (!status || t.status === status) &&
-                (!from || t.periodFrom.slice(0, 10) >= from) &&
-                (!to || t.periodFrom.slice(0, 10) <= to),
-            )
-            .map((t) => (
-              <article className="card record" key={t._id}>
-                <div className="row">
-                  <Link className="record-id" to={"/trips/" + t._id}>
-                    {t.tripId}
-                  </Link>
-                  <Badge>{t.status}</Badge>
-                </div>
-                {showArchived && user.role !== "DRIVER" && <button className="quiet" onClick={async()=>{try{await api.post("/trips/"+t._id+"/archive",{archived:false});records.reload();}catch(e){setExportError(message(e));}}}>Restore trip</button>}
-                <h3>
-                  {t.pickupLocation} → {t.dropLocation}
-                </h3>
-                <p>
-                  {t.customerId?.companyName} · {t.vehicleNumber}
-                </p>
-                {t.entries?.[0] && (
-                  <details onClick={(e) => e.stopPropagation()}>
-                    <summary>Trip-sheet columns</summary>
-                    <SheetSummary entry={t.entries[0]} trip={t} />
-                  </details>
-                )}
-                <div className="row">
-                  <span>{date(t.periodFrom)}</span>
-                  <strong>{currency(t.totalAmount)}</strong>
-                </div>
-              </article>
-            ))}
-        </div>
-        {records.data?.length === 0 && (
-          <div className="state">No trips yet. Create your first trip.</div>
-        )}
-      </State>
-    </>
-  );
+  const {site:routeSite}=useParams(),[query,setQuery]=useSearchParams();
+  const site=routeSite || "",all=useData("/trips"),[error,setError]=useState(""),[busy,setBusy]=useState(false);
+  const month=/^\d{4}-(0[1-9]|1[0-2])$/.test(query.get("month") || "")?query.get("month"):today().slice(0,7);
+  const lastDay=new Date(Date.UTC(Number(month.slice(0,4)),Number(month.slice(5,7)),0)).toISOString().slice(0,10);
+  const from=query.get("from") || month+"-01",to=query.get("to") || lastDay,status=query.get("status") || "";
+  const archived=query.get("archived")==="true";
+  const valid=from<=to;
+  const filters=new URLSearchParams({site,from,to,status,archived:String(archived)});
+  const records=useData("/trips?"+filters);
+  const update=(key,value)=>{const next=new URLSearchParams(query);next.set(key,value);if(key==="month"){next.delete("from");next.delete("to");}setQuery(next);};
+  const options=[...sites,...[...new Set((all.data||[]).map(t=>t.site).filter(Boolean))].filter(value=>!sites.some(s=>s.value===value)).map(value=>({value,label:value}))];
+  if(!site)return <><div className="page-head"><div><p className="eyebrow">OPERATIONS</p><h1>Trips by site</h1></div>{user.role!=="DRIVER"&&<Link className="button" to="/trips/new">+ Adhoc trip</Link>}</div><p>Choose a site to view its trips and export a selected month or date range.</p><State {...all}><div className="card-grid">{options.map(s=><Link className="card record" key={s.value} to={"/trips/site/"+encodeURIComponent(s.value)}><h2>{s.label}</h2><p>{(all.data||[]).filter(t=>t.site===s.value).length} trips</p><span>View trips →</span></Link>)}</div></State></>;
+  const label=options.find(s=>s.value===site)?.label || site;
+  return <><Link to="/trips">← All sites</Link><div className="page-head"><div><p className="eyebrow">SITE TRIPS</p><h1>{label}</h1></div>{user.role!=="DRIVER"&&<Link className="button" to={"/trips/new?site="+encodeURIComponent(site)}>+ Add trip</Link>}</div>
+    <div className="form-grid card"><Field name="month" label="Month" type="month" value={month} onChange={update}/><Field name="from" label="From date" type="date" value={from} onChange={update}/><Field name="to" label="To date" type="date" value={to} onChange={update}/><Field name="status" label="Status" value={status} options={[{value:"",label:"All statuses"},... ["Draft","Submitted","Approved","Completed","Invoiced","Cancelled"].map(value=>({value,label:value}))]} onChange={update}/></div>
+    {!valid&&<p className="error">To date must be on or after From date.</p>}{error&&<p className="error">{error}</p>}
+    <div className="actions">{user.role!=="DRIVER"&&<><button disabled={!valid||archived||records.loading||!!records.error||!records.data?.length||busy} onClick={async()=>{setBusy(true);setError("");try{await download("/exports/trips.xlsx?"+new URLSearchParams({site,from,to,status}),site+"-"+from+"-to-"+to+".xlsx");}catch(e){setError(message(e));}finally{setBusy(false);}}}>{busy?"Exporting…":"Export "+site+" Excel"}</button><label><input type="checkbox" checked={archived} onChange={e=>update("archived",String(e.target.checked))}/> Show archived trips</label></>}</div>
+    {valid&&<State {...records}>{records.data?.length?<><p className="muted">{records.data.length} trips · {date(from)} to {date(to)}</p><TripTable trips={records.data}/>{archived&&user.role!=="DRIVER"&&<div className="card-grid">{records.data.map(t=><section className="card" key={t._id}><strong>{t.tripId}</strong><button className="quiet" onClick={async()=>{try{await api.post("/trips/"+t._id+"/archive",{archived:false});records.reload();all.reload();}catch(e){setError(message(e));}}}>Restore trip</button></section>)}</div>}</>:<p className="state">No {site} trips in this date range.</p>}</State>}
+  </>;
 }
 export function TripDetail({ user }) {
   const { id } = useParams(),
@@ -249,6 +115,7 @@ export function TripDetail({ user }) {
           <>
             <div className="page-head">
               <div>
+                {t.site && <Link to={"/trips/site/"+encodeURIComponent(t.site)+"?month="+t.periodFrom.slice(0,7)}>← {t.site} trips</Link>}
                 <p className="eyebrow">TRIP DETAILS</p>
                 <h1>{t.tripId}</h1>
               </div>

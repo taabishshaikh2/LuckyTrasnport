@@ -116,6 +116,7 @@ function App() {
       <Route element={<Shell user={user} logout={logout} />}>
         <Route index element={<Home user={user} />} />
         <Route path="trips" element={<TripList user={user} />} />
+        <Route path="trips/site/:site" element={<TripList user={user} />} />
         <Route path="trips/:id" element={<TripDetail user={user} />} />
         <Route path="more" element={<More user={user} logout={logout} />} />
         {ops && (

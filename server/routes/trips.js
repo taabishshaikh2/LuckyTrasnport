@@ -37,6 +37,7 @@ r.get(
     for (const k of ["customerId", "vehicleId", "routeId", "driverId"])
       if (req.query[k] && (req.user.role !== "DRIVER" || k !== "driverId"))
         filter[k] = id.parse(req.query[k]);
+    if (req.query.site) filter.site = String(req.query.site);
     if (req.query.status) filter.status = String(req.query.status);
     if (req.query.from || req.query.to)
       filter.periodFrom = {

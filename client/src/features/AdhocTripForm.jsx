@@ -1,12 +1,13 @@
 import React,{useState} from "react";
-import {useNavigate} from "react-router-dom";
+import {useNavigate,useSearchParams} from "react-router-dom";
 import {useData} from "../hooks/useData";
 import {api,message} from "../api/client";
 import {Field,Calculation,today} from "../components/UI";
 import {sites} from "../../../shared/sites.js";
 export default function AdhocTripForm({existing,onClose}){
  const nav=useNavigate(),vehicles=useData("/masters/vehicles"),customers=useData("/masters/customers");
- const [v,setV]=useState(existing?{...existing,customerId:existing.customerId?._id||existing.customerId,vehicleId:existing.vehicleId?._id||existing.vehicleId,periodFrom:String(existing.periodFrom).slice(0,10),periodTo:String(existing.periodTo).slice(0,10),entries:existing.entries.map(e=>({...e,date:String(e.date).slice(0,10)}))}:{site:"Inbound",adhocService:"City",dutyKind:"Adhoc",customerId:"",vehicleId:"",periodFrom:today(),periodTo:today(),distanceBand:"0-50",distanceKm:0,nightDetention:false,pickupLocation:"Cargo",dropLocation:"MIDC",entries:[{date:today(),openingTime:"07:00",closingTime:"15:00",perTripHours:8}]}),[preview,setPreview]=useState(null),[error,setError]=useState(""),[busy,setBusy]=useState(false);
+ const [siteQuery]=useSearchParams(),initialSite=sites.find(s=>s.value===siteQuery.get("site"))||sites[0];
+ const [v,setV]=useState(existing?{...existing,customerId:existing.customerId?._id||existing.customerId,vehicleId:existing.vehicleId?._id||existing.vehicleId,periodFrom:String(existing.periodFrom).slice(0,10),periodTo:String(existing.periodTo).slice(0,10),entries:existing.entries.map(e=>({...e,date:String(e.date).slice(0,10)}))}:{site:initialSite.value,adhocService:["Inbound","Outbound"].includes(initialSite.value)?"City":"Kilometre",dutyKind:"Adhoc",customerId:"",vehicleId:"",periodFrom:today(),periodTo:today(),distanceBand:"0-50",distanceKm:0,nightDetention:false,pickupLocation:initialSite.origin,dropLocation:initialSite.destination,entries:[{date:today(),openingTime:"07:00",closingTime:"15:00",perTripHours:8}]}),[preview,setPreview]=useState(null),[error,setError]=useState(""),[busy,setBusy]=useState(false);
  const change=(k,val)=>{setPreview(null);setV(x=>{if(k==="site"){const s=sites.find(s=>s.value===val);return {...x,site:val,adhocService:["Inbound","Outbound"].includes(val)?"City":"Kilometre",pickupLocation:s.origin,dropLocation:s.destination,nightDetention:false,entries:[{...x.entries[0],chaName:val==="Inbound"?x.entries[0].chaName:"",huNumber:val==="Inbound"?"":x.entries[0].huNumber,mrbArrivalTime:val==="Inbound"?x.entries[0].mrbArrivalTime:""}]};}if(k==="periodFrom")return {...x,periodFrom:val,periodTo:val,entries:[{...x.entries[0],date:val,closingDate:""}]};return {...x,[k]:val};});};
  const entryChange=(k,val)=>change("entries",[{...v.entries[0],[k]:val}]);
  async function review(e){e.preventDefault();setBusy(true);setError("");try{setPreview((await api.post("/trips/preview",v)).data.data);}catch(e){setError(message(e));}finally{setBusy(false);}}
