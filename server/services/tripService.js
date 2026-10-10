@@ -136,6 +136,7 @@ export async function createTrip(input, user, session, source = "Manual") {
   }
   if (input.status === "Submitted" && !input.adhocService) {
     const busy = await Trip.exists({
+      ...(input.editingId?{_id:{$ne:input.editingId}}:{}),
       $or: [{ vehicleId: input.vehicleId }, { driverId: input.driverId }],
       status: { $in: ["Submitted", "Approved", "Invoiced"] },
       operationalCompleted: false,

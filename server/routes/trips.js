@@ -109,12 +109,13 @@ r.patch(
     const input = tripSchema.parse(req.body);
     const result = await transaction(async (s) => {
       const old = await Trip.findById(req.params.id).session(s);
-      if (!old || old.archived || old.status !== "Draft")
-        throw new AppError("Only draft trips can be edited");
+      if (!old || old.archived || !["Draft","Submitted","Approved","Completed"].includes(old.status))
+        throw new AppError("This trip cannot be edited. Cancel its invoice first if it has been invoiced");
+      if(await Invoice.exists({tripIds:old._id,status:{$ne:"Cancelled"}}).session(s))throw new AppError("Cancel the invoice before editing this trip",409);
       const originalId = old.tripId;
       const previous = old.toObject();
       const replacement = await createTrip(
-        { ...input, editingId: old._id },
+        { ...input, status:old.status==="Draft"?input.status:old.status==="Completed"?"Draft":"Submitted", editingId: old._id },
         req.user,
         s,
         old.source || "Manual",
@@ -124,6 +125,7 @@ r.patch(
       delete data._id;
       delete data.createdAt;
       data.tripId = originalId;
+      if(previous.status!=="Draft"){data.status=previous.status;data.operationalCompleted=previous.operationalCompleted;}
       data.createdBy = old.createdBy;
       Object.assign(old, data);
       await old.save({ session: s });
@@ -138,7 +140,7 @@ r.patch(
             entityId: old._id,
             previousValue: previous,
             newValue: old.toObject(),
-            reason: "Draft revised",
+            reason: "Trip revised",
             changedBy: req.user._id,
           },
         ],

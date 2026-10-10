@@ -314,7 +314,7 @@ export default function TripForm({ existing, onClose }) {
 
     try {
 
-      setPreview((await api.post("/trips/preview", payload())).data.data);
+      setPreview((await api.post("/trips/preview", {...payload(),status:"Draft"})).data.data);
 
       setStep(2);
 
@@ -372,7 +372,7 @@ export default function TripForm({ existing, onClose }) {
 
       <div className="page-head">
 
-        <h1>{existing ? "Edit draft" : "New trip"}</h1>
+        <h1>{existing ? "Edit trip" : "New trip"}</h1>
 
         {onClose && (
 
@@ -510,6 +510,8 @@ export default function TripForm({ existing, onClose }) {
 
               disabled={busy}
 
+              hidden={!!existing && existing.status!=="Draft"}
+
               className="quiet"
 
               onClick={() => save("Draft")}
@@ -522,7 +524,7 @@ export default function TripForm({ existing, onClose }) {
 
             <button disabled={busy} onClick={() => save("Submitted")}>
 
-              Submit trip
+              {existing?"Save changes":"Submit trip"}
 
             </button>
 

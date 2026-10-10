@@ -104,7 +104,7 @@ export function TripDetail({ user }) {
   return (
     <State {...record}>
       {t &&
-        (edit && t.status==="Draft" && !t.archived && user.role!=="DRIVER" ? (
+        (edit && ["Draft","Submitted","Approved","Completed"].includes(t.status) && !t.archived && user.role!=="DRIVER" ? (
           <TripForm
             existing={t}
             onClose={() => {
@@ -120,7 +120,7 @@ export function TripDetail({ user }) {
                 <p className="eyebrow">TRIP DETAILS</p>
                 <h1>{t.tripId}</h1>
               </div>
-              <Badge>{t.status}</Badge>
+              <Badge>{t.archived?"Archived":t.status==="Approved"?"Active · Approved":t.status}</Badge>
             </div>
             {error && <p className="error">{error}</p>}
             <section className="card">
@@ -152,9 +152,10 @@ export function TripDetail({ user }) {
               <div className="actions">
                 {!t.archived && ["Draft","Cancelled"].includes(t.status) && <button className="danger" disabled={busy} onClick={async()=>{setBusy(true);try{await api.post("/trips/"+id+"/archive",{archived:true});record.reload();}catch(e){setError(message(e));}finally{setBusy(false);}}}>Archive trip</button>}
                 {t.archived && <p className="notice">Archived. Restore this trip from the archived trips list.</p>}
+                {!t.archived && ["Draft","Submitted","Approved","Completed"].includes(t.status) && <button onClick={()=>setEdit(true)}>Edit trip</button>}
                 {!t.archived && t.status === "Draft" && (
                   <>
-                    <button onClick={() => setEdit(true)}>Edit draft</button>
+
                     <button
                       onClick={() =>
                         t.adhocService ? setEdit(true) : setEntries(
@@ -172,15 +173,15 @@ export function TripDetail({ user }) {
                     </button>
                   </>
                 )}
-                {t.status === "Submitted" && (
+                {!t.archived && t.status === "Submitted" && (
                   <button disabled={busy} onClick={() => action("Approved")}>
-                    Approve trip
+                    Activate trip
                   </button>
                 )}
-                {(t.status === "Approved" ||
+                {!t.adhocService && (t.status === "Approved" ||
                   (t.status === "Invoiced" && !t.operationalCompleted)) && (
                   <button disabled={busy} onClick={() => action("Completed")}>
-                    Complete duty
+                    Finish trip
                   </button>
                 )}
                 <button className="quiet" onClick={() => exportFile("xlsx")}>

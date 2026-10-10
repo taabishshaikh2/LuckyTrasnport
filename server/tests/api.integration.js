@@ -784,3 +784,16 @@ test("ACC passes save/edit by customer-site-month and protect billed amounts",as
   assert.equal((await call("delete",url)).status,409);
  }finally{await BillingClaim.deleteMany({key:`acc-pass:${customer._id}:Inbound:2026-07`});await AccPass.deleteMany({customerId:customer._id});await Customer.deleteOne({_id:customer._id});}
 });
+test("submitted and approved trips can be revised without losing their status",async()=>{
+ const source=await Trip.findOne({adhocService:"City"}).lean();assert.ok(source);
+ for(const status of ["Submitted","Approved"]){
+  const copy={...source,status,tripId:"EDIT-"+status,archived:false};delete copy._id;delete copy.__v;
+  const trip=await Trip.create(copy);
+  try{
+   const input={...copy,customerId:String(copy.customerId),vehicleId:String(copy.vehicleId),driverId:copy.driverId?String(copy.driverId):"",routeId:copy.routeId?String(copy.routeId):"",periodFrom:copy.periodFrom.toISOString().slice(0,10),periodTo:copy.periodTo.toISOString().slice(0,10),entries:copy.entries.map(e=>({...e,date:new Date(e.date).toISOString().slice(0,10),chaName:"Edited CHA"}))};
+   const call=(method,url,data)=>request(app)[method]("/api"+url).set("Authorization","Bearer "+token).set("X-Forwarded-For","203.0.113.47").send(data);
+   const preview=await call("post","/trips/preview",{...input,status:"Draft"});assert.equal(preview.status,200,JSON.stringify(preview.body));
+   const revised=await call("patch","/trips/"+trip._id,{...input,status:"Submitted",expectedTotal:preview.body.data.calculation.totalAmount});assert.equal(revised.status,200,JSON.stringify(revised.body));assert.equal(revised.body.data.status,status);assert.equal(revised.body.data.entries[0].chaName,"Edited CHA");
+  }finally{await Trip.deleteOne({_id:trip._id});}
+ }
+});

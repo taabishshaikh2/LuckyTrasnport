@@ -1,0 +1,175 @@
+
+> test:integration
+> npm run test:integration --workspace server
+
+
+> test:integration
+> node --test tests/api.integration.js
+
+TAP version 13
+# Subtest: API business workflow and concurrent integrity
+    # Subtest: JWT authentication and roles
+    ok 1 - JWT authentication and roles
+      ---
+      duration_ms: 76.7729
+      type: 'test'
+      ...
+    # Subtest: empty trip exports return a message while templates remain available
+    ok 2 - empty trip exports return a message while templates remain available
+      ---
+      duration_ms: 86.373
+      type: 'test'
+      ...
+    # Subtest: company profile permissions, validation and persistence
+    ok 3 - company profile permissions, validation and persistence
+      ---
+      duration_ms: 214.6514
+      type: 'test'
+      ...
+    # Subtest: masters and normalized duplicate vehicle
+    ok 4 - masters and normalized duplicate vehicle
+      ---
+      duration_ms: 1618.3714
+      type: 'test'
+      ...
+    # Subtest: atomic sequence under concurrent writes
+    ok 5 - atomic sequence under concurrent writes
+      ---
+      duration_ms: 257.2109
+      type: 'test'
+      ...
+    # Subtest: preview, create, reserve fleet and assigned access
+    ok 6 - preview, create, reserve fleet and assigned access
+      ---
+      duration_ms: 266.139
+      type: 'test'
+      ...
+    # Subtest: approve and invoice before completion
+    ok 7 - approve and invoice before completion
+      ---
+      duration_ms: 428.2745
+      type: 'test'
+      ...
+    # Subtest: concurrent payments cannot exceed balance
+    ok 8 - concurrent payments cannot exceed balance
+      ---
+      duration_ms: 252.4524
+      type: 'test'
+      ...
+    # Subtest: company edits preserve finalized invoice snapshots
+    ok 9 - company edits preserve finalized invoice snapshots
+      ---
+      duration_ms: 137.0596
+      type: 'test'
+      ...
+    # Subtest: authenticated binary downloads
+    ok 10 - authenticated binary downloads
+      ---
+      duration_ms: 599.5889
+      type: 'test'
+      ...
+    # Subtest: bulk mixed vehicles, independent charges, review token and overlapping files
+    ok 11 - bulk mixed vehicles, independent charges, review token and overlapping files
+      ---
+      duration_ms: 798.7176
+      type: 'test'
+      ...
+    # Subtest: Excel preview, confirmation, duplicate prevention
+    ok 12 - Excel preview, confirmation, duplicate prevention
+      ---
+      duration_ms: 324.3427
+      type: 'test'
+      ...
+    # Subtest: fleet fixed and variable invoices coexist; claims, stale review and cancellation are enforced
+    ok 13 - fleet fixed and variable invoices coexist; claims, stale review and cancellation are enforced
+      ---
+      duration_ms: 1122.8313
+      type: 'test'
+      ...
+    # Subtest: simple rate/fuel/expense pages automatically calculate variable and fixed invoices
+    ok 14 - simple rate/fuel/expense pages automatically calculate variable and fixed invoices
+      ---
+      duration_ms: 1171.0813
+      type: 'test'
+      ...
+    # Subtest: one challan across daily rows imports as one trip, with one base fare
+    ok 15 - one challan across daily rows imports as one trip, with one base fare
+      ---
+      duration_ms: 272.8478
+      type: 'test'
+      ...
+    # Subtest: one saved chart prices manual and imported trips, with both monthly invoice types
+    ok 16 - one saved chart prices manual and imported trips, with both monthly invoice types
+      ---
+      duration_ms: 871.0219
+      type: 'test'
+      ...
+    # Subtest: weekly offs save and edit all vehicle dates together
+    ok 17 - weekly offs save and edit all vehicle dates together
+      ---
+      duration_ms: 455.1863
+      type: 'test'
+      ...
+    # Subtest: branded Excel preview, atomic confirmation and repeat upload protection
+    ok 18 - branded Excel preview, atomic confirmation and repeat upload protection
+      ---
+      duration_ms: 466.4658
+      type: 'test'
+      ...
+    # Subtest: branded shift logs calculate variable charges without sites or agreements
+    ok 19 - branded shift logs calculate variable charges without sites or agreements
+      ---
+      duration_ms: 4537.2553
+      type: 'test'
+      ...
+    # Subtest: saved vehicle shift and selected manager salaries bill without agreements
+    ok 20 - saved vehicle shift and selected manager salaries bill without agreements
+      ---
+      duration_ms: 530.5563
+      type: 'test'
+      ...
+    # Subtest: Adhoc city and kilometre rates, trip entry and monthly Excel summaries
+    ok 21 - Adhoc city and kilometre rates, trip entry and monthly Excel summaries
+      ---
+      duration_ms: 1029.2535
+      type: 'test'
+      ...
+    1..21
+ok 1 - API business workflow and concurrent integrity
+  ---
+  duration_ms: 19281.8563
+  type: 'test'
+  ...
+# Subtest: trip archive hides records and supports restoration
+ok 2 - trip archive hides records and supports restoration
+  ---
+  duration_ms: 414.0208
+  type: 'test'
+  ...
+# Subtest: site pages and Excel include only the chosen site and inclusive date range
+ok 3 - site pages and Excel include only the chosen site and inclusive date range
+  ---
+  duration_ms: 88.4652
+  type: 'test'
+  ...
+# Subtest: ACC passes save/edit by customer-site-month and protect billed amounts
+ok 4 - ACC passes save/edit by customer-site-month and protect billed amounts
+  ---
+  duration_ms: 398.3499
+  type: 'test'
+  ...
+# Subtest: submitted and approved trips can be revised without losing their status
+ok 5 - submitted and approved trips can be revised without losing their status
+  ---
+  duration_ms: 407.2827
+  type: 'test'
+  ...
+1..5
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 25775.5074
