@@ -118,23 +118,25 @@ export function Field({
     </div>
   );
 }
-export function Calculation({ value }) {
+export function Calculation({ value, site, distanceBand, compact = false }) {
   if (!value) return null;
   const c = value.calculation || value,
     e = c.explanation;
+  const city = ["Inbound", "Outbound"].includes(site || e?.site) || value.rate?.source === "CityRate";
+  const hours = n => Number(n || 0).toFixed(2);
+  if(compact) return <section className="card calculation"><h3>Trip summary</h3><p>Duty {hours(e?.totalHours ?? c.totalHours)} hours · Included {hours(e?.baseHours ?? c.baseDutyHours)} hours{!city && <> · {distanceBand || e?.distanceBand} KM service</>}</p><dl>{[["Trip charges",c.baseAmount],["Overtime ("+hours(c.overtimeHours)+" hrs × "+currency(c.overtimeRate)+")",c.overtimeAmount],...(c.nightDetentionAmount>0?[["Night detention",c.nightDetentionAmount]]:[])].map(([label,amount])=><React.Fragment key={label}><dt>{label}</dt><dd>{currency(amount)}</dd></React.Fragment>)}</dl><div className="total">Total <strong>{currency(c.totalAmount)}</strong></div></section>;
   return (
     <section className="card calculation">
       <h3>Charge breakdown</h3>
       {e && (
         <p>
-          {e.billingMethod} · {e.distanceKm} KM · Slab{" "}
-          {e.minExclusive ? "above " : ""}
-          {e.minKm}–{e.maxKm ?? "∞"} KM
+          {e.billingMethod}
+          {!city && <> · {e.distanceKm} KM{(distanceBand || e.distanceBand) ? <> · Slab {distanceBand || e.distanceBand} KM</> : e.minKm != null && <> · Slab {e.minExclusive ? "above " : ""}{e.minKm}–{e.maxKm ?? "∞"} KM</>}</>}
           <br />
-          Duty {e.totalHours} hours · Included {e.baseHours} hours
+          Duty {hours(e.totalHours)} hours · Included {hours(e.baseHours)} hours
           <br />
-          Base rate {currency(e.baseRate)} · Per KM {currency(e.perKmRate)} ·
-          Per hour {currency(e.perHourRate)}
+          Base rate {currency(e.baseRate)}{!city && <> · Per KM {currency(e.perKmRate)} ·
+          Per hour {currency(e.perHourRate)}</>}
         </p>
       )}
       <dl>
@@ -142,7 +144,7 @@ export function Calculation({ value }) {
           ["Base amount", c.baseAmount],
           [
             "Overtime (" +
-              c.overtimeHours +
+              hours(c.overtimeHours) +
               " hrs × " +
               currency(c.overtimeRate) +
               ")",

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Field } from "../components/UI";
+import { Field, currency, date } from "../components/UI";
+import {adhocColumns,adhocRows,adhocCell} from "../../../shared/adhoc.js";
 import { durationText } from "../../../shared/sites.js";
 export const sheetFields=[
   ["srNo","SR.NO","number"],["awbNumber","AWB NO","text"],["customerName","CUSTOMER / CHA","text"],
@@ -33,6 +34,8 @@ export function SheetFields({entry={},onChange}) {
     <Field key={name} name={name} label={label} type={type} value={entry[name]} onChange={onChange}/>);
   return <>{fields(primary)}<details className="card" style={{gridColumn:"1 / -1"}}><summary>Challan, KM & supporting details</summary><div className="form-grid">{fields(supporting)}</div></details></>;
 }
-export function SheetSummary({entry={}}) {return <dl>{sheetFields.map(([name,label,type])=><React.Fragment key={name}>
+export function SheetSummary({entry={},trip,index=0}) {
+  if(trip?.adhocService){const row=adhocRows([{...trip,entries:[entry]}])[0];row.srNo=index+1;return <dl>{adhocColumns(trip.site).map(([label,key])=><React.Fragment key={key}><dt>{label}</dt><dd>{["tripCharges","tollParking","totalServiceCharges"].includes(key)?currency(row[key]):key==="date"?date(row[key]):adhocCell(row,key)||"—"}</dd></React.Fragment>)}</dl>; }
+  return <dl>{sheetFields.map(([name,label,type])=><React.Fragment key={name}>
   <dt>{label}</dt><dd>{type === "duration" ? durationText(entry[name]) : entry[name] ?? "—"}</dd>
 </React.Fragment>)}</dl>;}

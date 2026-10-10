@@ -16,6 +16,7 @@ import LegacyTripForm from "../features/TripForm";
 import AdhocTripForm from "../features/AdhocTripForm";
 const TripForm=props=>props.existing?.adhocService?<AdhocTripForm {...props}/>:<LegacyTripForm {...props}/>;
 import TripTable from "../features/TripTable";
+import { durationText } from "../../../shared/sites.js";
 import { sites } from "../../../shared/sites.js";
 export function TripList({ user }) {
   const [showArchived,setShowArchived]=useState(false);
@@ -155,7 +156,7 @@ export function TripList({ user }) {
                 {t.entries?.[0] && (
                   <details onClick={(e) => e.stopPropagation()}>
                     <summary>Trip-sheet columns</summary>
-                    <SheetSummary entry={t.entries[0]} />
+                    <SheetSummary entry={t.entries[0]} trip={t} />
                   </details>
                 )}
                 <div className="row">
@@ -263,10 +264,10 @@ export function TripDetail({ user }) {
                 {t.driverId?.fullName}
               </p>
               <p>
-                {date(t.periodFrom)} – {date(t.periodTo)} · {t.distanceKm} KM ·{" "}
-                {t.totalHours} hours
+                {date(t.periodFrom)} – {date(t.periodTo)}{!["Inbound","Outbound"].includes(t.site) && <> · {t.distanceKm} KM</>} ·{" "}
+                {Number(t.totalHours || 0).toFixed(2)} hours
               </p>
-              <p>
+              <p hidden={!!t.adhocService}>
                 Source: {t.source} · Operationally{" "}
                 {t.operationalCompleted ? "completed" : "open"}
               </p>
@@ -278,7 +279,7 @@ export function TripDetail({ user }) {
                 </p>
               )}
             </section>
-            <Calculation value={t.calculation} />
+            <Calculation value={t.calculation} site={t.site} distanceBand={t.distanceBand} compact={!!t.adhocService} />
             {user.role !== "DRIVER" && (
               <div className="actions">
                 {!t.archived && ["Draft","Cancelled"].includes(t.status) && <button className="danger" disabled={busy} onClick={async()=>{setBusy(true);try{await api.post("/trips/"+id+"/archive",{archived:true});record.reload();}catch(e){setError(message(e));}finally{setBusy(false);}}}>Archive trip</button>}
@@ -346,14 +347,14 @@ export function TripDetail({ user }) {
               t.entries.map((e, i) => (
                 <section className="card" key={i}>
                   <strong>
-                    {i + 1}. {date(e.date)} · {e.chaName || "Challan"}
+                    {i + 1}. {date(e.date)} · {t.site === "Inbound" ? e.chaName || "Inbound trip" : e.huNumber ? "HUID " + e.huNumber : "Trip"}
                   </strong>
                   <p>
                     {e.vehicleNo || t.vehicleNumber} · {e.openingTime || "—"} →{" "}
-                    {e.closingTime || "—"} · {e.totalHours} hours ·{" "}
-                    {e.distanceKm} KM
+                    {e.closingTime || "—"} · {durationText(e.totalHours)} hours
+                    {!["Inbound","Outbound"].includes(t.site) && <> · {e.distanceKm} KM</>}
                   </p>
-                  <SheetSummary entry={e} />
+                  <SheetSummary entry={e} trip={t} index={i} />
                 </section>
               ))
             )}
