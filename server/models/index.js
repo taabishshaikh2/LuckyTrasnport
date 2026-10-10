@@ -65,9 +65,12 @@ export const ShiftSettings = make("ShiftSettings", {
 });
 export const TripRate = make("TripRate", {
   ...common, rateId:{type:String,unique:true}, vehicleType:{type:String,required:true},
-  upTo50:Number,upTo150:Number,above150:Number,overtimeRate:Number,
+  upTo50:Number,upTo150:Number,above150:Number,overtimeRate:Number,makeModel:String,pnqOvertimeRate:Number,
   active:{type:Boolean,default:true},
 }, s=>s.index({vehicleType:1},{unique:true,partialFilterExpression:{archived:false,active:true}}));
+export const CityRate = make("CityRate", {
+ ...common,rateId:{type:String,unique:true},vehicleType:{type:String,required:true},makeModel:String,tripRate:Number,overtimeRate:Number,nightDetention:Number,active:{type:Boolean,default:true},
+},s=>s.index({vehicleType:1},{unique:true,partialFilterExpression:{archived:false,active:true}}));
 export const FleetRate = make("FleetRate", {
   ...common, rateId: {type:String,unique:true}, name:String, customerId:ref("Customer"), site:String,
   vehicleType:String, shiftHours:Number, fixedRate:Number, serviceRate:Number, amcRate:Number,
@@ -185,6 +188,7 @@ const entry = new Schema(
 export const Trip = make(
   "Trip",
   {
+    adhocService:String,distanceBand:String,nightDetention:Boolean,parkingSnapshot:Number,
     site: String, dutyKind: { type: String, default: "Adhoc" },
     tripId: { type: String, unique: true },
     customerId: ref("Customer"),
@@ -338,7 +342,7 @@ export const Audit = make("Audit", {
   changedBy: ref("User"),
 });
 export const masters = {
-  brandedLogs:BrandedLog,weeklyOffs:WeeklyOff, fleetManagers: FleetManager, tripRates: TripRate, agreements: Agreement, fleetRates: FleetRate, fuelCharges: FuelCharge, vehicleExpenses: VehicleExpense, airportExpenses: AirportExpense,
+  brandedLogs:BrandedLog,weeklyOffs:WeeklyOff, fleetManagers: FleetManager, cityRates:CityRate, tripRates: TripRate, agreements: Agreement, fleetRates: FleetRate, fuelCharges: FuelCharge, vehicleExpenses: VehicleExpense, airportExpenses: AirportExpense,
   vehicles: Vehicle,
   drivers: Driver,
   customers: Customer,

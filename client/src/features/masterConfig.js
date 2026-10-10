@@ -23,11 +23,12 @@ export const config = {
  weeklyOffs:{title:"Vehicle weekly offs",label:"name",id:"offId",defaults:{date:today()},fields:[f("customerId","Billing customer"),f("vehicleId","Branded vehicle"),f("date","Off date","date"),notes]},
   fleetManagers:{title:"Fleet managers",label:"name",id:"managerId",defaults:{monthlySalary:0,active:true},fields:[f("name","Manager name"),f("customerId","Billing customer"),f("site","Site","text",sites),f("monthlySalary","Salary per month","number"),f("active","Active","checkbox"),notes]},
 
-  tripRates:{title:"Adhoc trip rate chart",label:"vehicleType",id:"rateId",defaults:{upTo50:0,upTo150:0,above150:0,overtimeRate:0,active:true},
+  cityRates:{title:"Trip based services (within city limits)",label:"vehicleType",id:"rateId",defaults:{tripRate:0,overtimeRate:0,nightDetention:0,active:true},fields:[f("vehicleType","Vehicle type"),f("makeModel","Vehicle make / model"),f("tripRate","New rate per trip / 8 hours","number"),f("overtimeRate","Additional hour cost (INR)","number"),f("nightDetention","Night detention charge (INR)","number"),f("active","Active","checkbox")]},
+  tripRates:{title:"Kilometre based services",label:"vehicleType",id:"rateId",defaults:{upTo50:0,upTo150:0,above150:0,overtimeRate:0,active:true},
 
-    fields:[f("vehicleType","Vehicle type"),f("upTo50","0-50 KM charge","number"),f("upTo150","Above 50-150 KM charge","number"),
+    fields:[f("vehicleType","Vehicle type"),f("makeModel","Vehicle make / model"),f("pnqOvertimeRate","Above 150 KM: detention per hour after 16 hours (PNQ only)","number"),f("upTo50","0-50 KM charge","number"),f("upTo150","Above 50-150 KM charge","number"),
 
-      f("above150","Above 150 KM rate per KM","number"),f("overtimeRate","Additional hour cost","number"),f("active","Active","checkbox")]},
+      f("above150","Above 150 KM rate per KM","number"),f("overtimeRate","Up to 150 KM: detention per hour after 8 hours","number"),f("active","Active","checkbox")]},
 
   fleetRates: {
 
@@ -118,10 +119,12 @@ export const config = {
 
         "14 FT",
 
+        "19 FT",
         "17 FT",
 
         "20 FT",
 
+        "Above 20 FT",
         "Custom",
 
       ]),
@@ -316,10 +319,12 @@ export const config = {
 
         "14 FT",
 
+        "19 FT",
         "17 FT",
 
         "20 FT",
 
+        "Above 20 FT",
         "Custom",
 
       ]),

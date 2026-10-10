@@ -73,7 +73,7 @@ test("printed site exports preserve totals, merged summary and reimport below ti
   assert.equal(rows[1][17],"40:30");assert.equal(rows[3][17],120);
   assert.equal(rows[5][13],"TOTAL KM");assert.equal(rows[7][13],47);
   assert.equal(rows[7][17],120);assert.equal(rows[7][11],"48:30");
-  assert.equal(sheet["!merges"].length,12);
+  assert.equal(sheet["!merges"].length,14);
   const parsed=parseWorkbook(siteWorkbook([trip],"Inbound"));
   assert.equal(parsed.rows.length,1);assert.equal(parsed.mapping.distanceKm,"TOTAL KM");
 });

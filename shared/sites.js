@@ -1,7 +1,10 @@
 export const sites = [
-  { value: "Inbound", label: "Inbound — MIDC to Cargo", origin: "MIDC", destination: "Cargo" },
+
+  { value: "Inbound", label: "Inbound - Cargo to MIDC", origin: "Cargo", destination: "MIDC" },
   { value: "Outbound", label: "Outbound — Marwah to Cargo", origin: "Marwah", destination: "Cargo" },
-  { value: "Goregaon", label: "Goregaon to Cargo", origin: "Goregaon", destination: "Cargo" },
+  { value: "Goregaon", label: "GGT1 (Goregaon) to Cargo", origin: "Goregaon", destination: "Cargo" },
+  {value:"Byculla",label:"Byculla to Cargo",origin:"Byculla",destination:"Cargo"},
+  {value:"PNQ",label:"PNQ",origin:"Pune",destination:"Cargo"},
   { value: "VVR", label: "Vidhyavihar (VVR) to Cargo", origin: "Vidhyavihar", destination: "Cargo" },
 ];
 export const siteColumns = [

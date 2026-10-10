@@ -10,6 +10,8 @@ import RateChart from "./pages/RateChart";
 import Masters from "./pages/Masters";
 import { TripList, TripDetail } from "./pages/Trips";
 import TripForm from "./features/TripForm";
+import AdhocTripForm from "./features/AdhocTripForm";
+import Vehicles from "./pages/Vehicles";
 import {
   InvoiceList,
   InvoiceForm,
@@ -118,7 +120,7 @@ function App() {
         <Route path="more" element={<More user={user} logout={logout} />} />
         {ops && (
           <>
-            <Route path="trips/new" element={<TripForm />} />
+            <Route path="trips/new" element={<AdhocTripForm />} />
             {[
               "vehicles",
               "drivers",
@@ -131,7 +133,7 @@ function App() {
               <Route
                 key={entity}
                 path={entity}
-                element={<Masters key={entity} entity={entity} user={user} />}
+                element={entity==="vehicles" ? <Vehicles user={user}/> : <Masters entity={entity} user={user} />}
               />
             ))}
             <Route path="weeklyOffs" element={<WeeklyOffs/>}/>

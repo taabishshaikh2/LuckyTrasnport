@@ -159,7 +159,7 @@ r.post(
         throw new AppError("Invalid trip status transition");
       if (input.status === "Cancelled" && !input.reason?.trim())
         throw new AppError("Cancellation requires a reason");
-      if (input.status === "Submitted") {
+      if (input.status === "Submitted" && !t.adhocService) {
         if (t.dutyKind === "Branded" && t.rateSnapshot?.source !== "TripRate") throw new AppError("Edit this draft and review its saved trip-chart rates before submitting");
         if (!t.driverId)
           throw new AppError("Assign a driver before submitting the trip");

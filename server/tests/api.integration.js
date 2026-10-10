@@ -681,7 +681,7 @@ test(
         const row=await post("/masters/brandedLogs",{...shift,date:"2026-06-"+String(day).padStart(2,"0"),openingTime:second?"15:00":"07:00",closingTime:second?"23:00":"15:00",held:true,holdLocation:"Loading warehouse",airportFee:0});assert.equal(row.status,201,JSON.stringify(row.body));assert.equal(row.body.data.distanceKm,0);
       }
       const exported=await get("/exports/branded-logs.xlsx?month=2026-06&vehicleId="+vehicle._id).buffer(true).parse((res,done)=>{const chunks=[];res.on("data",b=>chunks.push(b));res.on("end",()=>done(null,Buffer.concat(chunks)));res.on("error",done);});assert.equal(exported.status,200);
-      const wb=XLSX.read(exported.body,{type:"buffer"});const sheet=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.equal(sheet[10].length,10);assert.equal(sheet[0][0],"Vendor name");assert.equal(sheet[4][9],11484);assert.equal(sheet.at(-1)[8],11484);
+      const wb=XLSX.read(exported.body,{type:"buffer"});const sheet=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.equal(sheet[10].length,10);assert.equal(sheet[0][0],"Vendor name");assert.equal(sheet[4][9],11484);assert.equal(sheet.find(row=>row[0]==="TOTAL")[8],11484);
       for(const day of [7,14,21,28])assert.equal((await post("/masters/weeklyOffs",{...common,vehicleId:vehicle._id,date:"2026-06-"+String(day).padStart(2,"0")})).status,201);
       const input={...common,site:"Branded",billingType:"Variable",vehicleIds:[vehicle._id],periodFrom:"2026-06-01",periodTo:"2026-06-30",invoiceDate:"2026-07-01",dueDate:"2026-08-01",stateCode:"27",placeOfSupply:"Maharashtra",cgstRate:9,sgstRate:9,taxConfirmed:true,roundToRupee:false};
       const preview=await post("/invoices/preview",input);assert.equal(preview.status,200,JSON.stringify(preview.body));
@@ -711,6 +711,23 @@ test(
       assert.equal((await post("/invoices/preview",input)).status,409);
       const shifts=await get("/settings/shifts");assert.deepEqual(shifts.body.data.entries.map(s=>s.hours),[8,16,24]);
       const edited=await request(app).put("/api/settings/shifts").set("Authorization","Bearer "+token).send({entries:[...shifts.body.data.entries,{hours:12,monthlyKm:3500}]});assert.equal(edited.status,200,JSON.stringify(edited.body));
+    });
+    await t.test("Adhoc city and kilometre rates, trip entry and monthly Excel summaries",async()=>{
+      const v=(await post("/masters/vehicles",{vehicleNumber:"MH01ADHOCQA",vehicleType:"ADHOC QA",parkingMonthly:7500})).body.data;
+      assert.ok(v._id);
+      assert.equal((await post("/masters/cityRates",{vehicleType:"ADHOC QA",makeModel:"Closed body",tripRate:1242,overtimeRate:200,nightDetention:645},manager)).status,403);
+      assert.equal((await post("/masters/cityRates",{vehicleType:"ADHOC QA",makeModel:"Closed body",tripRate:1242,overtimeRate:200,nightDetention:645})).status,201);
+      assert.equal((await post("/masters/tripRates",{vehicleType:"ADHOC QA",upTo50:2200,upTo150:3300,above150:18,overtimeRate:200,pnqOvertimeRate:250})).status,201);
+      const input={customerId:refs.customers._id,vehicleId:v._id,site:"Inbound",adhocService:"City",periodFrom:"2026-06-01",periodTo:"2026-06-01",pickupLocation:"Cargo",dropLocation:"MIDC",entries:[{date:"2026-06-01",openingTime:"20:00",closingTime:"05:30",mrbArrivalTime:"23:00",chaName:"QA CHA"}]};
+      const review=await post("/trips/preview",input);assert.equal(review.status,200,JSON.stringify(review.body));assert.equal(review.body.data.calculation.totalAmount,1542);
+      const night=await post("/trips/preview",{...input,nightDetention:true});assert.equal(night.body.data.calculation.totalAmount,2187);
+      const created=await post("/trips",{...input,status:"Submitted",expectedTotal:1542});assert.equal(created.status,201,JSON.stringify(created.body));assert.equal(created.body.data.parkingSnapshot,7500);assert.equal(created.body.data.entries[0].closingDate,"2026-06-02");assert.equal(created.body.data.rateSnapshot.source,"CityRate");
+      const two={...input,periodFrom:"2026-06-03",periodTo:"2026-06-03",entries:[{...input.entries[0],date:"2026-06-03"}]};const next=await post("/trips",{...two,status:"Submitted",expectedTotal:1542});assert.equal(next.status,201,JSON.stringify(next.body));
+      const km={...input,site:"VVR",adhocService:"Kilometre",distanceBand:"0-50",distanceKm:40};const k=await post("/trips/preview",km);assert.equal(k.status,200,JSON.stringify(k.body));assert.equal(k.body.data.calculation.totalAmount,2500);
+      assert.equal((await post("/trips/preview",{...input,site:"VVR"})).status,400);
+      const file=await get("/exports/trips.xlsx?site=Inbound&vehicleId="+v._id+"&from=2026-06-01&to=2026-06-30").buffer(true).parse((res,done)=>{const chunks=[];res.on("data",b=>chunks.push(b));res.on("end",()=>done(null,Buffer.concat(chunks)));res.on("error",done);});assert.equal(file.status,200,JSON.stringify(file.body));
+      const wb=XLSX.read(file.body,{type:"buffer"}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.equal(rows[0][11],2484);assert.equal(rows[1][9],"3:00");assert.equal(rows[1][11],600);assert.equal(rows[2][11],7500);assert.equal(rows[3][11],10584);assert.equal(rows[4][3],"CHA NAME");assert.equal(rows[4].length,12);assert.ok(rows.some(row=>row.includes("DHL Representatives Sign")&&row.includes("Vendor Sign")));
+      const draft=await post("/trips",{...two,status:"Draft",expectedTotal:1542});assert.equal(draft.status,201);assert.equal((await post("/trips/"+draft.body.data._id+"/status",{status:"Submitted"})).status,200);
     });
   },
 );

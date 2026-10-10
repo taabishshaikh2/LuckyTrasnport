@@ -13,7 +13,7 @@ import { config } from "../features/masterConfig";
 
 import { State, Field, Badge } from "../components/UI";
 
-export default function Masters({ entity, user }) {
+export default function Masters({ entity, user, vehicleKind }) {
 
   const [logMonth,setLogMonth]=useState(new Date().toISOString().slice(0,7)),[logVehicle,setLogVehicle]=useState("");
   const [params, setParams] = useSearchParams();
@@ -40,7 +40,7 @@ export default function Masters({ entity, user }) {
 
     [filter, setFilter] = useState(""),
 
-    [edit, setEdit] = useState(params.has("new") ? { ...cfg.defaults,...(["fleetRates","fleetManagers","fuelCharges","vehicleExpenses","airportExpenses"].includes(entity)?{site:"Branded"}:{}) } : null),
+    [edit, setEdit] = useState(params.has("new") ? { ...cfg.defaults,...(entity==="vehicles"&&vehicleKind?{branded:vehicleKind==="Branded"}:{}),...(["fleetRates","fleetManagers","fuelCharges","vehicleExpenses","airportExpenses"].includes(entity)?{site:"Branded"}:{}) } : null),
 
     [detail, setDetail] = useState(null),
 
@@ -52,13 +52,13 @@ export default function Masters({ entity, user }) {
 
   const canEdit =
 
-    !["rates", "routes", "users", "agreements", "fleetRates", "tripRates", "fleetManagers"].includes(entity) || user.role === "ADMIN";
+    !["rates", "routes", "users", "agreements", "fleetRates", "tripRates", "cityRates", "fleetManagers"].includes(entity) || user.role === "ADMIN";
 
   useEffect(() => {
 
     if (params.has("new")) {
 
-      setEdit({ ...cfg.defaults,...(["fleetRates","fleetManagers","fuelCharges","vehicleExpenses","airportExpenses"].includes(entity)?{site:"Branded"}:{}) });
+      setEdit({ ...cfg.defaults,...(entity==="vehicles"&&vehicleKind?{branded:vehicleKind==="Branded"}:{}),...(["fleetRates","fleetManagers","fuelCharges","vehicleExpenses","airportExpenses"].includes(entity)?{site:"Branded"}:{}) });
 
       setParams({}, { replace: true });
 
@@ -151,7 +151,7 @@ export default function Masters({ entity, user }) {
   const optionsFor = (name) =>
     name === "shiftHours" ? shifts.data?.entries.map(s=>({value:String(s.hours),label:s.hours+" hours - "+s.monthlyKm+" KM"})) :
 
-    name === "vehicleType" && entity === "tripRates" ? [...new Set((vehicles.data || []).map(v=>v.vehicleType === "Custom" ? v.customVehicleType || "Custom" : v.vehicleType))] :
+    name === "vehicleType" && ["tripRates","cityRates"].includes(entity) ? [...new Set((vehicles.data || []).map(v=>v.vehicleType === "Custom" ? v.customVehicleType || "Custom" : v.vehicleType))] :
 
     name === "vehicleType" && entity === "fleetRates" ? [...new Set((vehicles.data || []).map(v=>v.vehicleType))] :
 
@@ -193,7 +193,7 @@ export default function Masters({ entity, user }) {
 
             onClick={() => {
 
-              setEdit({ ...cfg.defaults,...(["fleetRates","fleetManagers","fuelCharges","vehicleExpenses","airportExpenses"].includes(entity)?{site:"Branded"}:{}) });
+              setEdit({ ...cfg.defaults,...(entity==="vehicles"&&vehicleKind?{branded:vehicleKind==="Branded"}:{}),...(["fleetRates","fleetManagers","fuelCharges","vehicleExpenses","airportExpenses"].includes(entity)?{site:"Branded"}:{}) });
 
               setError("");
 
@@ -211,7 +211,7 @@ export default function Masters({ entity, user }) {
 
       {entity === "weeklyOffs" && <p>Without off dates, billing allows one weekly off per seven days (four in a full month). When off dates are logged, billing uses those dates. Each off removes the vehicle's assigned 8/16/24 duty hours from included hours.</p>}
       {entity === "brandedLogs" && <p>One row = one 8-hour shift. Total KM = closing minus opening. Loaded / held rows have zero KM. Shifts worked on logged weekly-off dates incur ADC immediately. Other excess duty is calculated monthly without counting off-day shifts twice; airport entry fees remain outside GST.</p>}
-      {entity === "tripRates" && <p>For Adhoc trips only. Save once per vehicle type. Trips automatically use the distance band and additional-hour cost. Above 150 KM, the per-KM rate applies to the whole trip distance. Overtime uses exact minutes beyond the trip's included hours.</p>}
+      {entity === "tripRates" && <p>Save once per vehicle type. Above 150 KM uses the actual distance times the per-KM rate. Up to 150 KM includes 8 hours; above 150 KM detention applies only to PNQ trips after 16 hours.</p>}
 
       {entity === "agreements" && <p>Select the vehicle and rate chart. Included monthly KM: 8 hours = 3,000; 16 = 4,000; 24 = 5,000. Fuel and expenses have their own pages.</p>}
 
@@ -290,10 +290,11 @@ export default function Masters({ entity, user }) {
       {entity==="brandedLogs" && <div className="filters"><input aria-label="Log month" type="month" value={logMonth} onChange={e=>setLogMonth(e.target.value)}/><select aria-label="Branded vehicle" value={logVehicle} onChange={e=>setLogVehicle(e.target.value)}><option value="">All branded vehicles</option>{vehicles.data?.filter(v=>v.branded).map(v=><option key={v._id} value={v._id}>{v.vehicleNumber}</option>)}</select><button onClick={async()=>{try{await download("/exports/branded-logs.xlsx?month="+logMonth+(logVehicle?"&vehicleId="+logVehicle:""),"branded-shift-log.xlsx");}catch(e){setError(message(e));}}}>Export branded log Excel</button><BrandedImport customers={customers.data||[]} onImported={count=>{records.reload();setSuccess(count+" branded shifts imported");}}/></div>}
       <State {...records}>
 
-        {entity === "tripRates" && <div className="sheet-scroll"><table className="trip-sheet"><thead><tr><th>Vehicle type</th><th>0-50 KM</th><th>Above 50-150 KM</th><th>Above 150 KM / KM</th><th>Additional hour cost</th><th>Status</th></tr></thead><tbody>{records.data?.filter(x=>JSON.stringify({...x,customerName:customers.data?.find(c=>c._id===String(x.customerId))?.companyName}).toLowerCase().includes(search.toLowerCase()) && (!filter || String(x.active)===filter)).map(x=><tr key={x._id}><td><button className="quiet" onClick={()=>setDetail(x)}>{x.vehicleType}</button></td>{["upTo50","upTo150","above150","overtimeRate"].map(k=><td key={k}>{Number(x[k]).toFixed(2)}</td>)}<td>{x.active ? "Active" : "Inactive"}</td></tr>)}</tbody></table></div>}
+        {entity === "cityRates" && <div className="sheet-scroll"><table className="trip-sheet"><thead><tr>{["Vehicle type","Vehicle make / model","Trip / 8 Hr","New rate","Additional hour cost","Night detention charge","Status"].map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{records.data?.filter(x=>JSON.stringify(x).toLowerCase().includes(search.toLowerCase())&&(!filter||String(x.active)===filter)).map(x=><tr key={x._id}><td><button className="quiet" onClick={()=>setDetail(x)}>{x.vehicleType}</button></td><td>{x.makeModel}</td><td>1</td>{["tripRate","overtimeRate","nightDetention"].map(k=><td key={k}>{Number(x[k]||0).toFixed(2)}</td>)}<td>{x.active?"Active":"Inactive"}</td></tr>)}</tbody></table></div>}
+        {entity === "tripRates" && <div className="sheet-scroll"><table className="trip-sheet"><thead><tr><th>Vehicle type</th><th>Vehicle make / model</th><th>0-50 KM</th><th>Above 50-150 KM</th><th>Above 150 KM / KM</th><th>Detention after 8 hrs</th><th>PNQ detention after 16 hrs</th><th>Status</th></tr></thead><tbody>{records.data?.filter(x=>JSON.stringify({...x,customerName:customers.data?.find(c=>c._id===String(x.customerId))?.companyName}).toLowerCase().includes(search.toLowerCase()) && (!filter || String(x.active)===filter)).map(x=><tr key={x._id}><td><button className="quiet" onClick={()=>setDetail(x)}>{x.vehicleType}</button></td><td>{x.makeModel}</td>{["upTo50","upTo150","above150","overtimeRate","pnqOvertimeRate"].map(k=><td key={k}>{Number(x[k]||0).toFixed(2)}</td>)}<td>{x.active ? "Active" : "Inactive"}</td></tr>)}</tbody></table></div>}
 
         {entity === "brandedLogs" && <div className="sheet-scroll"><table className="trip-sheet"><thead><tr>{["Date","Vehicle no.","Opening KM","Closing KM","Total KM","Opening time","Closing time","Total hours","Additional service charges","Domestic airport entry"].map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{records.data?.filter(x=>String(x.date).slice(0,7)===logMonth && (!logVehicle || x.vehicleId===logVehicle) && JSON.stringify(x).toLowerCase().includes(search.toLowerCase())).map(x=><tr key={x._id}><td><button className="quiet" onClick={()=>setDetail(x)}>{String(x.date).slice(0,10)}</button></td><td>{vehicles.data?.find(v=>v._id===x.vehicleId)?.vehicleNumber}</td><td>{x.held?"Loaded / held: "+x.holdLocation:x.openingKm}</td><td>{x.held?x.holdLocation:x.closingKm}</td><td>{x.distanceKm}</td><td>{x.openingTime}</td><td>{x.closingTime}</td><td>{x.totalHours}</td><td>{Number(adcAmounts.get(x._id)||0).toFixed(2)}</td><td>{Number(x.airportFee||0).toFixed(2)}</td></tr>)}</tbody></table></div>}
-        <div className="card-grid" style={["tripRates","brandedLogs"].includes(entity) ? {display:"none"} : undefined}>
+        <div className="card-grid" style={["tripRates","cityRates","brandedLogs"].includes(entity) ? {display:"none"} : undefined}>
 
           {records.data
 
@@ -307,6 +308,7 @@ export default function Masters({ entity, user }) {
 
                   .includes(search.toLowerCase()) &&
 
+                (!vehicleKind || x.branded===(vehicleKind==="Branded")) &&
                 (!filter || (x.status || (x.active == null ? "Recorded" : String(x.active))) === filter),
 
             )
@@ -499,7 +501,7 @@ export default function Masters({ entity, user }) {
 
             <div className="form-grid">
 
-              {cfg.fields.filter(f=>!(f.name==="site" && ["fleetRates","fleetManagers","fuelCharges","vehicleExpenses","airportExpenses"].includes(entity))).filter(f=>entity!=="vehicles" || edit?.branded || !["adcRate","amcRate","parkingMonthly","tollEntryMonthly"].includes(f.name)).map((f) => (
+              {cfg.fields.filter(f=>!(f.name==="site" && ["fleetRates","fleetManagers","fuelCharges","vehicleExpenses","airportExpenses"].includes(entity))).filter(f=>entity!=="vehicles" || (edit?.branded ? f.name!=="branded" : ["vehicleNumber","vehicleType"].includes(f.name))).map((f) => (
 
                 <Field
 
@@ -533,7 +535,7 @@ export default function Masters({ entity, user }) {
 
                   ].includes(f.name)}
 
-                  options={optionsFor(f.name) || f.options}
+                  options={entity==="vehicles"&&!edit.branded ? undefined : optionsFor(f.name) || f.options}
 
                   value={
 

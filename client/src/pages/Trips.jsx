@@ -12,7 +12,9 @@ import {
   today,
 } from "../components/UI";
 import { SheetFields, SheetSummary } from "../features/SheetFields";
-import TripForm from "../features/TripForm";
+import LegacyTripForm from "../features/TripForm";
+import AdhocTripForm from "../features/AdhocTripForm";
+const TripForm=props=>props.existing?.adhocService?<AdhocTripForm {...props}/>:<LegacyTripForm {...props}/>;
 import TripTable from "../features/TripTable";
 import { sites } from "../../../shared/sites.js";
 export function TripList({ user }) {
@@ -210,7 +212,7 @@ export function TripDetail({ user }) {
         customerId: t.customerId._id,
         vehicleId: t.vehicleId._id,
         driverId: t.driverId?._id || "",
-        routeId: t.routeId._id,
+        routeId: t.routeId?._id || "",
         periodFrom: t.periodFrom.slice(0, 10),
         periodTo: t.periodTo.slice(0, 10),
         entries,
@@ -281,7 +283,7 @@ export function TripDetail({ user }) {
                     <button onClick={() => setEdit(true)}>Edit draft</button>
                     <button
                       onClick={() =>
-                        setEntries(
+                        t.adhocService ? setEdit(true) : setEntries(
                           t.entries.map((e) => ({
                             ...e,
                             date: e.date.slice(0, 10),

@@ -16,7 +16,7 @@ import { transaction } from "../services/transactionService.js";
 import { wrap, ok, AppError } from "../utils/errors.js";
 const r = Router();
 const meta = {brandedLogs:["logId","BLOG-"],weeklyOffs:["offId","OFF-"],
-  fleetManagers:["managerId","FM-"], tripRates:["rateId","TRATE-"],
+  fleetManagers:["managerId","FM-"], tripRates:["rateId","TRATE-"],cityRates:["rateId","CITY-"],
   agreements: ["agreementId", "AGR-"], fleetRates:["rateId","FLEET-"], fuelCharges:["chargeId","FUEL-"], vehicleExpenses:["chargeId","EXP-"], airportExpenses:["chargeId","AIR-"],
   vehicles: ["vehicleId", "V"],
   drivers: ["driverId", "D"],
@@ -132,7 +132,7 @@ r.get(
   }),
 );
 const permission = (req, res, next) =>
-  ["routes", "rates", "agreements", "fleetRates", "tripRates", "fleetManagers"].includes(req.entity)
+  ["routes", "rates", "agreements", "fleetRates", "tripRates", "cityRates", "fleetManagers"].includes(req.entity)
     ? admin(req, res, next)
     : operations(req, res, next);
 export async function references(entity, v, session, readOnly=false) {

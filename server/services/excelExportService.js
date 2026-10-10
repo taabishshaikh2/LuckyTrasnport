@@ -1,7 +1,43 @@
+import {adhocRows,adhocSummary,cityColumns,kmColumns,isCity,adhocCell} from "../../shared/adhoc.js";
 import {logAdcAmounts,brandedAdc} from "../../shared/brandedLogs.js";
 import XLSX from "xlsx-js-style";
 import { sites, siteColumns, durationText } from "../../shared/sites.js";
 import { AppError } from "../utils/errors.js";
+export function signatureFooter(sheet){
+ const existing=Object.values(sheet).filter(cell=>cell&&typeof cell==="object"&&["DHL Representatives Sign","Vendor Sign"].includes(cell.v));
+ if(existing.length){for(const cell of existing)cell.s={...(cell.s||{}),font:{name:"Arial",sz:10,bold:true},alignment:{vertical:"center",horizontal:"left"}};return;}
+ const range=XLSX.utils.decode_range(sheet["!ref"]||"A1"),width=Math.max(6,range.e.c+1),row=range.e.r+3,right=Math.max(4,Math.floor(width*.6));
+ const merges=sheet["!merges"]||=[];
+ for(const [col,end,value] of [[1,Math.max(2,right-2),"DHL Representatives Sign"],[right,width-1,"Vendor Sign"]]){
+  sheet[XLSX.utils.encode_cell({r:row,c:col})]={t:"s",v:value,s:{font:{name:"Arial",sz:10,bold:true},alignment:{horizontal:"left",vertical:"center"}}};
+  if(end>col)merges.push({s:{r:row,c:col},e:{r:row,c:end}});
+ }
+ sheet["!rows"]||=[];sheet["!rows"][row]={hpt:24};sheet["!ref"]=XLSX.utils.encode_range({s:range.s,e:{r:row+2,c:width-1}});
+}
+function signedWorkbook(book){for(const sheet of Object.values(book.Sheets))signatureFooter(sheet);return XLSX.write(book,{type:"buffer",bookType:"xlsx"});}
+export function adhocWorkbook(trips,site,company,period={}){
+ const wb=XLSX.utils.book_new(),all=adhocRows(trips);
+ for(const siteName of site?[site]:[...new Set(all.map(r=>r.site))]){
+  const rows=all.filter(r=>r.site===siteName),city=isCity(siteName),cols=city?cityColumns:kmColumns,width=cols.length,summary=adhocSummary(rows);
+  const data=[],merges=[],dates=rows.map(r=>r.date).sort(),rateValues=[...new Set(rows.filter(r=>r.gtInHours>0).map(r=>r.overtimeRate))];
+  const service=[...new Set(rows.map(r=>r.distanceBand).filter(Boolean))].join(", ");
+  const top=(label,value,title,details,rate,amount)=>{const r=data.length,row=Array(width).fill("");row[0]=label;row[2]=value;row[6]=title;row[width-3]=details;row[width-2]=rate;row[width-1]=amount;data.push(row);merges.push({s:{r,c:0},e:{r,c:1}},{s:{r,c:2},e:{r,c:5}},{s:{r,c:6},e:{r,c:width-4}});};
+  top("Vendor Name",company?.name||"LUCKY TRANSPORT SERVICES","Trip amount","Details","Rate",summary.tripAmount);
+  top(city?"VEHICLE TYPE":"SERVICE",city?[...new Set(rows.map(r=>r.vehicleType))].join(", "):service,"Extra O.T Hrs",durationText(summary.otHours),rateValues.length===1?rateValues[0]:rateValues.length?"Mixed rates":0,summary.otAmount);
+  top("PERIOD",[period.from||dates[0],period.to||dates.at(-1)].filter(Boolean).join(" to "),"PARKING CHARGES","","",summary.parking);
+  if(summary.night)top("","","Night detention","Marked trips","",summary.night);
+  top(city?"CHA INCLUDES":"SITE",city?[...new Set(rows.map(r=>r.chaName).filter(Boolean))].join(", "):siteName,"Total Amount","","",summary.total);
+  const header=data.length;data.push(cols.map(c=>c[0]));
+  rows.forEach((r,index)=>data.push(cols.map(([,k])=>k==="srNo"?index+1:k==="date"?r.date.split("-").reverse().join("-"):adhocCell(r,k))));
+  data.push(cols.map(([,k],index)=>index===0?"TOTAL":k==="gtInHours"?durationText(summary.otHours):k==="tripCharges"?summary.tripAmount:k==="tollParking"?summary.parking:k==="totalServiceCharges"?summary.tripAmount+summary.parking:""));
+  data.push([],["DHL Representatives Sign","","","","","","Vendor Sign"]);
+  const ws=XLSX.utils.aoa_to_sheet(data),border={style:"thin",color:{rgb:"000000"}};ws["!merges"]=merges;ws["!cols"]=cols.map(([,k])=>({wch:k==="vehicleNo"?19:k==="chaName"?22:k==="srNo"?7:15}));ws["!rows"]=data.map((_,r)=>({hpt:r===header?52:r<header?24:23}));
+  for(let r=0;r<data.length-2;r++)for(let col=0;col<width;col++){const key=XLSX.utils.encode_cell({r,c:col}),cell=ws[key]||={t:"s",v:""};cell.s={font:{name:"Arial",sz:10,bold:r<=header||r===data.length-3},alignment:{vertical:"center",wrapText:true,horizontal:r<header?"left":"center"},border:{top:border,bottom:border,left:border,right:border},...(r===header?{fill:{fgColor:{rgb:"E8EDF2"}}}:{})};if(cell.t==="n"&&(r<header||col>=width-3))cell.z="#,##0.00";}
+  ws["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:header,c:0},e:{r:header+rows.length,c:width-1}})};
+  XLSX.utils.book_append_sheet(wb,ws,(siteName+" Trips").slice(0,31));
+ }
+ return signedWorkbook(wb);
+}
 export function siteTripRows(trips) {
   return trips.map((t,index)=>{
     const e=t.entries?.[0] || {}, last=t.entries?.at(-1) || e;
@@ -17,8 +53,9 @@ export function siteTripRows(trips) {
   });
 }
 export function siteWorkbook(trips,site,invoice,company) {
+  if(trips.some(t=>t.adhocService))return adhocWorkbook(trips,site,invoice?.companySnapshot||company);
   const profile=sites.find(s=>s.value===site);
-  if (!profile) throw new AppError("Select one of the four sites");
+  if (!profile) throw new AppError("Select a valid site");
   const book=XLSX.utils.book_new();
   const data=siteTripRows(trips);
   const exportColumns = data.length ? [...siteColumns.slice(0,13), ["TOTAL KM", "distanceKm"], ["RATE PER KM", "ratePerKm"], ...siteColumns.slice(13)] : siteColumns;
@@ -76,7 +113,7 @@ export function siteWorkbook(trips,site,invoice,company) {
     ["","CGST","","",invoice.cgstAmount],["","SGST","","",invoice.sgstAmount],["","IGST","","",invoice.igstAmount],
     ["","Round off","","",invoice.roundOff],["","Invoice total","","",invoice.totalAmount],
   ]),"Narration");
-  return XLSX.write(book,{type:"buffer",bookType:"xlsx"});
+  return data.length ? signedWorkbook(book) : XLSX.write(book,{type:"buffer",bookType:"xlsx"});
 }
 export const columns = [
   ["Sr No", "srNo"],
@@ -108,7 +145,7 @@ const duration = (v) => {
   const m = Math.round(Number(v || 0) * 60);
   return Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0");
 };
-function bookBuffer(rows, name) {
+function bookBuffer(rows, name, sign=true) {
   const sheet = XLSX.utils.aoa_to_sheet(rows);
   sheet["!cols"] = rows[0].map(() => ({ wch: 22 }));
   sheet["!autofilter"] = {
@@ -119,9 +156,10 @@ function bookBuffer(rows, name) {
   };
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, sheet, name);
-  return XLSX.write(book, { type: "buffer", bookType: "xlsx" });
+  return sign ? signedWorkbook(book) : XLSX.write(book, { type: "buffer", bookType: "xlsx" });
 }
 export async function allSitesWorkbook(trips,company) {
+  if(trips.some(t=>t.adhocService))return adhocWorkbook(trips,undefined,company);
   const book=XLSX.utils.book_new();
   for (const site of sites) {
     const matching=trips.filter(t=>t.site===site.value);
@@ -133,11 +171,11 @@ export async function allSitesWorkbook(trips,company) {
     const old=XLSX.read(await tripWorkbook(legacy),{type:"buffer"});
     XLSX.utils.book_append_sheet(book,old.Sheets[old.SheetNames[0]],"Legacy Trips");
   }
-  return XLSX.write(book,{type:"buffer",bookType:"xlsx"});
+  return signedWorkbook(book);
 }
 export function importTemplate(site) {
   if (site) return siteWorkbook([],site);
-  return bookBuffer([columns.map((x) => x[0])], "Trips");
+  return bookBuffer([columns.map((x) => x[0])], "Trips", false);
 }
 export async function tripWorkbook(trips) {
   const rows = [
@@ -229,5 +267,5 @@ export function brandedWorkbook(logs,vehicles,offs=[],context={}){
   for(const key of Object.keys(ws)){if(key.startsWith('!'))continue;const row=XLSX.utils.decode_cell(key).r,col=XLSX.utils.decode_cell(key).c;ws[key].s={font:{name:'Arial',sz:10,bold:row<3||row===8||row===9||row===10||row===data.length-1},alignment:{vertical:'center',wrapText:true},...(row>=9?{border:Object.fromEntries(['top','bottom','left','right'].map(k=>[k,{style:'thin',color:{rgb:'333333'}}]))}:{}),...(row===10?{fill:{fgColor:{rgb:'E8EDF2'}}}:{})};if(typeof ws[key].v==='number'&&((row<9&&col===9)||(row>=11&&col>=8)))ws[key].z='#,##0.00';}
   XLSX.utils.book_append_sheet(wb,ws,(v.vehicleNumber+'-'+month+'-'+ ++sheetIndex).slice(0,31));
  }
- return XLSX.write(wb,{type:'buffer',bookType:'xlsx'});
+ return signedWorkbook(wb);
 }

@@ -1,10 +1,12 @@
+import { adhocRate } from "./adhocRateService.js";
+import { sites } from "../../shared/sites.js";
 import { distanceRate, vehicleRateType } from "./distanceRateService.js";
 import {
   Vehicle,
   Driver,
   Customer,
   Route,
-  Rate, TripRate, Agreement,
+  Rate, TripRate, CityRate, Agreement,
   Trip,
   Audit,
 } from "../models/index.js";
@@ -45,7 +47,17 @@ export async function previewTrip(input, session) {
   const vehicle = await Vehicle.findById(input.vehicleId, null, opts);
   const driver = await Driver.findById(input.driverId, null, opts);
   const customer = await Customer.findById(input.customerId, null, opts);
-  const route = await Route.findById(input.routeId, null, opts);
+  const route = input.adhocService ? {routeName:sites.find(s=>s.value===input.site)?.label,category:input.site,active:true} : await Route.findById(input.routeId, null, opts);
+  if(input.adhocService){
+   if(input.overrideAmount!=null || input.manualAmount!=null)throw new AppError("Adhoc entries use the saved service rate");
+   if(vehicle?.branded)throw new AppError("Select an Adhoc vehicle");
+   if(input.dutyKind!=="Adhoc")throw new AppError("This entry format is for Adhoc vehicles");
+   const city=["Inbound","Outbound"].includes(input.site);
+   if(!route.routeName || city!==(input.adhocService==="City"))throw new AppError("Select the service matching this site");
+   if(input.entries.length!==1 || !input.entries[0].openingTime || !input.entries[0].closingTime)throw new AppError("Enter one trip date, opening time and closing time");
+   input.entries[0].perTripHours=8;input.extraAmount=0;input.deductionAmount=0;
+   input.parkingSnapshot=Number(vehicle.parkingMonthly||0)+Number(vehicle.tollEntryMonthly||0);
+  }
   if (
     !vehicle ||
     (input.driverId && !driver) ||
@@ -63,7 +75,7 @@ export async function previewTrip(input, session) {
     ["On Leave", "Inactive"].includes(driver?.status)
   )
     throw new AppError("Vehicle or driver is unavailable");
-  if (input.status === "Submitted" && !driver)
+  if (input.status === "Submitted" && !driver && !input.adhocService)
     throw new AppError("Assign a driver before submitting the trip");
   const rates = await Rate.find(
     { routeId: route._id, active: true, archived: false },
@@ -76,7 +88,8 @@ export async function previewTrip(input, session) {
   },null,opts).lean();
   if (!chart && input.dutyKind === "Branded") throw new AppError("Add a trip rate chart for "+vehicleRateType(vehicle)+" before reviewing this trip");
   const includedHours = input.entries[0]?.perTripHours || assignment?.shiftHours || 8;
-  const rate = chart ? distanceRate(chart,input.distanceKm,includedHours) : selectRate(rates,{...input,vehicleType:vehicle.vehicleType});
+  const cityChart=input.adhocService==="City" ? await CityRate.findOne({vehicleType:vehicleRateType(vehicle),active:true,archived:false},null,opts).lean() : null;
+  const rate = input.adhocService ? adhocRate(input,input.adhocService==="City"?cityChart:chart) : chart ? distanceRate(chart,input.distanceKm,includedHours) : selectRate(rates,{...input,vehicleType:vehicle.vehicleType});
   if (
     route.category === "Special" &&
     (!input.pickupLocation || !input.dropLocation)
@@ -108,8 +121,8 @@ export async function createTrip(input, user, session, source = "Manual") {
     [Vehicle, p.vehicle],
     [Driver, p.driver],
     [Customer, p.customer],
-    [Route, p.route],
-    [p.rate.source === "TripRate" ? TripRate : Rate, p.rate],
+    [Route, p.route._id ? p.route : null],
+    [p.rate.source === "CityRate" ? CityRate : p.rate.source === "TripRate" ? TripRate : Rate, p.rate],
   ]) {
     const [Model, record] = modelAndRecord;
     if (!record) continue;
@@ -121,7 +134,7 @@ export async function createTrip(input, user, session, source = "Manual") {
     if (!touched.modifiedCount)
       throw new AppError("A selected master record changed. Review again", 409);
   }
-  if (input.status === "Submitted") {
+  if (input.status === "Submitted" && !input.adhocService) {
     const busy = await Trip.exists({
       $or: [{ vehicleId: input.vehicleId }, { driverId: input.driverId }],
       status: { $in: ["Submitted", "Approved", "Invoiced"] },
@@ -139,11 +152,12 @@ export async function createTrip(input, user, session, source = "Manual") {
     await Customer.updateOne({_id:input.customerId},{$inc:{referenceVersion:1}},{session});
   }
   const calc = p.calculation;
-  if (p.rate.source === "TripRate") input.entries = input.entries.map((e,i)=>({...e,
+  if(input.adhocService){input.operationalCompleted=true;input.entries=input.entries.map(e=>({...e,vehicleNo:p.vehicle.vehicleNumber,vehicleType:vehicleRateType(p.vehicle),pickupLocation:input.pickupLocation,dropLocation:input.dropLocation}));}
+  if (["TripRate","CityRate"].includes(p.rate.source)) input.entries = input.entries.map((e,i)=>({...e,
     sdcCharges:i===0 ? calc.subtotal : 0,tripCharges:i===0 ? calc.baseAmount : 0,
     gtAmount:i===0 ? calc.overtimeAmount : 0,gtInHours:i===0 ? calc.overtimeHours : 0,
     totalServiceCharges:i===0 ? calc.totalAmount : 0,
-    ...(i===0 ? {perTripHours:calc.baseDutyHours} : {}),
+    ...(i===0 ? {perTripHours:input.adhocService?8:calc.baseDutyHours} : {}),
   }));
   const tripId = await sequence("trip", "TR-", session);
   const override =

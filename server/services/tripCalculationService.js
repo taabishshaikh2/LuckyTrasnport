@@ -67,7 +67,8 @@ export function calculateTrip(input, rate) {
   }
   if (rate.applyOvertime) overtimeHours = Math.max(0, (input.totalHours || 0) - rate.baseHours);
   const overtime = d(overtimeHours).mul(rate.overtimeRate);
-  const original = money(base.add(overtime));
+  const nightDetentionAmount=input.nightDetention ? money(rate.nightDetention||0) : 0;
+  const original = money(base.add(overtime).add(nightDetentionAmount));
   const override = input.overrideAmount != null;
   if (override && !input.overrideReason?.trim())
     throw new AppError("A rate override requires a reason");
@@ -79,6 +80,7 @@ export function calculateTrip(input, rate) {
   );
   if (totalAmount < 0) throw new AppError("Deductions exceed trip charges");
   return {
+    nightDetentionAmount,
     billingMethod: rate.billingMethod,
     ratePerTrip: rate.baseRate,
     perKmRate: rate.perKmRate,

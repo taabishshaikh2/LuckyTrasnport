@@ -7,7 +7,7 @@ import { Trip, Invoice, BrandedLog,WeeklyOff,Vehicle,FleetRate,FuelCharge } from
 import { operations } from "../middleware/auth.js";
 import { id } from "../validators/index.js";
 import {
-  brandedWorkbook, tripWorkbook,
+  adhocWorkbook, brandedWorkbook, tripWorkbook,
   importTemplate, siteWorkbook, allSitesWorkbook,
 } from "../services/excelExportService.js";
 import { tripDocx, invoiceDocx } from "../services/docxService.js";
@@ -91,7 +91,7 @@ r.get(
         404,
       );
     const company = await getCompanyProfile();
-    send(res, req.query.site ? siteWorkbook(trips,String(req.query.site),undefined,company) : trips.some(t=>t.site) ? await allSitesWorkbook(trips,company) : await tripWorkbook(trips), "lucky-trip-sheet", "xlsx");
+    send(res, trips.some(t=>t.adhocService) ? adhocWorkbook(trips,req.query.site,company,{from:req.query.from,to:req.query.to}) : req.query.site ? siteWorkbook(trips,String(req.query.site),undefined,company) : trips.some(t=>t.site) ? await allSitesWorkbook(trips,company) : await tripWorkbook(trips), "lucky-trip-sheet", "xlsx");
   }),
 );
 r.get(
