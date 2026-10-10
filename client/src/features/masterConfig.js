@@ -19,6 +19,7 @@ const status = (options) => f("status", "Status", "text", options);
 const notes = f("notes", "Notes", "textarea");
 
 export const config = {
+ accPasses:{title:"ACC daily & monthly passes",label:"site",id:"passId",defaults:{site:"Inbound",month:today().slice(0,7),amount:0},fields:[f("customerId","Billing customer"),f("site","Site","text",["Inbound","Outbound"]),f("month","Month","month"),f("amount","ACC daily & monthly pass total (INR)","number"),notes]},
  brandedLogs:{title:"Branded shift logs",label:"name",id:"logId",defaults:{date:today(),openingTime:"07:00",closingTime:"15:00",openingKm:0,closingKm:0,held:false,airportFee:0},fields:[f("customerId","Billing customer"),f("vehicleId","Branded vehicle"),f("date","Date","date"),f("held","Loaded / held at location","checkbox"),f("holdLocation","Loading / hold location"),f("openingKm","Opening odometer KM","number"),f("closingKm","Closing odometer KM","number"),f("openingTime","Opening time","time"),f("closingTime","Closing time","time"),f("airportFee","Domestic airport entry fee","number")]},
  weeklyOffs:{title:"Vehicle weekly offs",label:"name",id:"offId",defaults:{date:today()},fields:[f("customerId","Billing customer"),f("vehicleId","Branded vehicle"),f("date","Off date","date"),notes]},
   fleetManagers:{title:"Fleet managers",label:"name",id:"managerId",defaults:{monthlySalary:0,active:true},fields:[f("name","Manager name"),f("customerId","Billing customer"),f("site","Site","text",sites),f("monthlySalary","Salary per month","number"),f("active","Active","checkbox"),notes]},

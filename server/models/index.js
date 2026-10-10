@@ -12,6 +12,7 @@ const make = (name, fields, setup) => {
   setup?.(s);
   return mongoose.model(name, s);
 };
+export const AccPass = make("AccPass", {...common,passId:String,customerId:ref("Customer"),site:{type:String,enum:["Inbound","Outbound"]},month:String,amount:Number,notes:String},s=>s.index({customerId:1,site:1,month:1},{unique:true,partialFilterExpression:{archived:false}}));
 export const User = make("User", {
   name: String,
   username: { type: String, unique: true, required: true },
@@ -342,7 +343,7 @@ export const Audit = make("Audit", {
   reason: String,
   changedBy: ref("User"),
 });
-export const masters = {
+export const masters = { accPasses:AccPass,
   brandedLogs:BrandedLog,weeklyOffs:WeeklyOff, fleetManagers: FleetManager, cityRates:CityRate, tripRates: TripRate, agreements: Agreement, fleetRates: FleetRate, fuelCharges: FuelCharge, vehicleExpenses: VehicleExpense, airportExpenses: AirportExpense,
   vehicles: Vehicle,
   drivers: Driver,

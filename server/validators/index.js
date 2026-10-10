@@ -46,6 +46,7 @@ export const methods = [
 ];
 const clock=str.regex(/^([01]\d|2[0-3]):[0-5]\d$/,"Enter a valid time");
 export const masterSchemas = {
+ accPasses:z.object({customerId:id,site:z.enum(["Inbound","Outbound"]),month:z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),amount:num,notes:optional}),
  brandedLogs:z.object({customerId:id,vehicleId:id,date,openingKm:n,closingKm:n,openingTime:clock,closingTime:clock,held:z.boolean().default(false),holdLocation:optional,airportFee:n}).transform(v=>{
   const minute=t=>Number(t.slice(0,2))*60+Number(t.slice(3));
   const minutes=(minute(v.closingTime)-minute(v.openingTime)+1440)%1440;

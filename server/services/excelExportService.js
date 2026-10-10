@@ -16,7 +16,7 @@ export function signatureFooter(sheet){
 }
 function signedWorkbook(book){for(const sheet of Object.values(book.Sheets))signatureFooter(sheet);return XLSX.write(book,{type:"buffer",bookType:"xlsx"});}
 export function adhocWorkbook(trips,site,company,period={}){
- const wb=XLSX.utils.book_new(),all=adhocRows(trips);
+ const wb=XLSX.utils.book_new(),all=adhocRows(trips,period.passes||[]);
  for(const siteName of site?[site]:[...new Set(all.map(r=>r.site))]){
   const rows=all.filter(r=>r.site===siteName),city=isCity(siteName),cols=adhocColumns(siteName),width=cols.length,summary=adhocSummary(rows);
   const data=[],merges=[],dates=rows.map(r=>r.date).sort(),rateValues=[...new Set(rows.filter(r=>r.gtInHours>0).map(r=>r.overtimeRate))];
@@ -24,7 +24,7 @@ export function adhocWorkbook(trips,site,company,period={}){
   const top=(label,value,title,details,rate,amount)=>{const r=data.length,row=Array(width).fill("");row[0]=label;row[2]=value;row[6]=title;row[width-3]=details;row[width-2]=rate;row[width-1]=amount;data.push(row);merges.push({s:{r,c:0},e:{r,c:1}},{s:{r,c:2},e:{r,c:5}},{s:{r,c:6},e:{r,c:width-4}});};
   top("Vendor Name",company?.name||"LUCKY TRANSPORT SERVICES","Trip amount","Details","Rate",summary.tripAmount);
   top(city?"VEHICLE TYPE":"SERVICE",city?[...new Set(rows.map(r=>r.vehicleType))].join(", "):service,"Extra O.T Hrs",durationText(summary.otHours),rateValues.length===1?rateValues[0]:rateValues.length?"Mixed rates":0,summary.otAmount);
-  top("PERIOD",[period.from||dates[0],period.to||dates.at(-1)].filter(Boolean).join(" to "),"PARKING CHARGES","","",summary.parking);
+  top("PERIOD",[period.from||dates[0],period.to||dates.at(-1)].filter(Boolean).join(" to "),city?"ACC Daily & Monthly Pass":"PARKING CHARGES","","",city?summary.accPass:summary.parking);
   if(summary.night)top("","","Night detention","Marked trips","",summary.night);
   top(siteName==="Inbound"?"CHA INCLUDES":"SITE",siteName==="Inbound"?[...new Set(rows.map(r=>r.chaName).filter(Boolean))].join(", "):siteName,"Total Amount","","",summary.total);
   const header=data.length;data.push(cols.map(c=>c[0]));

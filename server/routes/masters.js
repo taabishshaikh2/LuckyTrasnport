@@ -15,7 +15,7 @@ import { sequence } from "../services/sequenceService.js";
 import { transaction } from "../services/transactionService.js";
 import { wrap, ok, AppError } from "../utils/errors.js";
 const r = Router();
-const meta = {brandedLogs:["logId","BLOG-"],weeklyOffs:["offId","OFF-"],
+const meta = {accPasses:["passId","ACC-"],brandedLogs:["logId","BLOG-"],weeklyOffs:["offId","OFF-"],
   fleetManagers:["managerId","FM-"], tripRates:["rateId","TRATE-"],cityRates:["rateId","CITY-"],
   agreements: ["agreementId", "AGR-"], fleetRates:["rateId","FLEET-"], fuelCharges:["chargeId","FUEL-"], vehicleExpenses:["chargeId","EXP-"], airportExpenses:["chargeId","AIR-"],
   vehicles: ["vehicleId", "V"],
@@ -110,7 +110,7 @@ r.get(
   operations,
   wrap(async (req, res) => {
     const filter={archived:false};
-    if (["brandedLogs","weeklyOffs"].includes(req.entity) && req.query.month){
+    if (["brandedLogs","weeklyOffs","accPasses"].includes(req.entity) && req.query.month){
       const month=String(req.query.month);if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw new AppError("Select a valid month");
       const from=new Date(month+"-01");filter.date={$gte:from,$lt:new Date(Date.UTC(from.getUTCFullYear(),from.getUTCMonth()+1,1))};
     }
@@ -136,6 +136,14 @@ const permission = (req, res, next) =>
     ? admin(req, res, next)
     : operations(req, res, next);
 export async function references(entity, v, session, readOnly=false) {
+ if(entity==="accPasses"){
+  if(!await masters.customers.exists({_id:v.customerId,archived:false}).session(session))throw new AppError("Customer unavailable");
+  const old=v._id?await masters.accPasses.findById(v._id).session(session).lean():null;
+  for(const pass of [v,old].filter(Boolean))if(await BillingClaim.exists({key:`acc-pass:${pass.customerId}:${pass.site}:${pass.month}`}).session(session))throw new AppError("This ACC pass is already billed. Cancel the invoice before changing it",409);
+  if(await masters.accPasses.exists({customerId:v.customerId,site:v.site,month:v.month,archived:false,...(v._id?{_id:{$ne:v._id}}:{})}).session(session))throw new AppError("An ACC pass is already saved for this customer, site and month",409);
+  if(!readOnly)await masters.customers.updateOne({_id:v.customerId},{$inc:{referenceVersion:1}},{session});
+ }
+
   if (["brandedLogs","weeklyOffs"].includes(entity)) {
     const vehicle=await masters.vehicles.findOne({_id:v.vehicleId,branded:true,archived:false}).session(session);
     if (!vehicle) throw new AppError("Select a branded vehicle");
@@ -258,7 +266,7 @@ r.patch(
           v.status = "On Trip";
       }
       old.$locals.previousValue = old.toObject();
-      if (["brandedLogs","weeklyOffs"].includes(req.entity)) await references(req.entity,{...old.toObject(),_id:String(old._id)},session);
+      if (["brandedLogs","weeklyOffs","accPasses"].includes(req.entity)) await references(req.entity,{...old.toObject(),_id:String(old._id)},session);
       Object.assign(old, v, { updatedBy: req.user._id });
       await old.save({ session });
       await Audit.create(
@@ -320,7 +328,7 @@ r.delete(
           "Disable dependent rates before archiving the route",
         );
       const source=await req.Model.findById(req.params.id).session(session);
-      if (source && ["brandedLogs","weeklyOffs"].includes(req.entity)) await references(req.entity,{...source.toObject(),_id:String(source._id)},session);
+      if (source && ["brandedLogs","weeklyOffs","accPasses"].includes(req.entity)) await references(req.entity,{...source.toObject(),_id:String(source._id)},session);
       if (source?.customerId) await masters.customers.updateOne({_id:source.customerId},{$inc:{referenceVersion:1}},{session});
       const updated = await req.Model.findByIdAndUpdate(
         req.params.id,

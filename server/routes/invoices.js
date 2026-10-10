@@ -1,7 +1,7 @@
-import {adhocRows} from "../../shared/adhoc.js";
+import {adhocRows,isCity} from "../../shared/adhoc.js";
 import { Router } from "express";
 import Decimal from "decimal.js";
-import { BrandedLog, WeeklyOff, Invoice, Trip, Customer, Audit, BillingClaim, Agreement, Vehicle, FleetManager, ShiftSettings, FleetRate, FuelCharge, VehicleExpense, AirportExpense } from "../models/index.js";
+import { AccPass, BrandedLog, WeeklyOff, Invoice, Trip, Customer, Audit, BillingClaim, Agreement, Vehicle, FleetManager, ShiftSettings, FleetRate, FuelCharge, VehicleExpense, AirportExpense } from "../models/index.js";
 import { operations } from "../middleware/auth.js";
 import { invoiceSchema, paymentSchema, id } from "../validators/index.js";
 import { invoiceNumber } from "../services/sequenceService.js";
@@ -38,7 +38,7 @@ r.get(
 async function prepare(input, session) {
   const c = await Customer.findById(input.customerId).session(session || null);
   if (!c || c.archived) throw new AppError("Customer unavailable");
-  let trips, lines, vehicles=[], keys, from, to;
+  let trips, lines, vehicles=[], keys, from, to; const passSnapshots=new Map();
   if (input.billingType === "Adhoc") {
     trips = await Trip.find({_id:{$in:input.tripIds},customerId:c._id,
       status:{$in:["Approved","Completed"]}, ...(input.site ? {site:input.site} : {}),
@@ -54,7 +54,16 @@ async function prepare(input, session) {
       vehicleId:String(t.vehicleId),vehicleNumber:t.vehicleNumber,quantity:1,rate:t.totalAmount,amount:t.totalAmount,taxable:true,
       baseAmount:t.baseAmount,overtimeHours:t.overtimeHours,overtimeAmount:t.overtimeAmount,tollParking:t.extraAmount,nightDetentionAmount:t.calculation?.nightDetentionAmount||0}));
     keys=input.tripIds.map(id=>"adhoc:"+id);
-    for(const row of adhocRows(trips.filter(t=>t.adhocService))){
+    const passes=await AccPass.find({customerId:c._id,archived:false}).session(session||null).lean();
+    for(const row of adhocRows(trips.filter(t=>t.adhocService),passes)){
+      if(isCity(row.site)&&row.accPass){
+       const key=`acc-pass:${c._id}:${row.site}:${row.date.slice(0,7)}`;
+       if(!await BillingClaim.exists({key}).session(session||null)){
+        if(session)await AccPass.updateOne({customerId:c._id,site:row.site,month:row.date.slice(0,7),archived:false},{$inc:{referenceVersion:1}},{session:session||undefined});
+        lines.push({description:`ACC daily & monthly pass - ${row.site} - ${row.date.slice(0,7)}`,category:"ACC daily & monthly pass",quantity:1,rate:row.accPass,amount:row.accPass,taxable:true});keys.push(key);passSnapshots.set(String(row._id),row.accPass);
+       }
+      }
+
       if(!row.tollParking)continue;
       const trip=trips.find(t=>String(t._id)===String(row._id)),month=row.date.slice(0,7),key=`adhoc-parking:${trip.vehicleId}:${month}`;
       if(await BillingClaim.exists({key}).session(session||null))continue;
@@ -72,7 +81,7 @@ async function prepare(input, session) {
   const totals=totalLines(lines);
   const calc=calculateInvoice(totals.taxable,{...input,nonTaxableAmount:totals.nonTaxable},profile.stateCode);
   const invoiceMonth=from.toLocaleDateString("en-IN",{month:"long",year:"numeric",timeZone:"Asia/Kolkata"});
-  const tripSnapshot=trips.map(t=>({tripId:t.tripId,site:t.site,dutyKind:t.dutyKind,adhocService:t.adhocService,distanceBand:t.distanceBand,parkingSnapshot:t.parkingSnapshot,calculation:t.calculation,subtotal:t.subtotal,vehicleNumber:t.vehicleNumber,vehicleType:t.vehicleType,
+  const tripSnapshot=trips.map(t=>({accPassSnapshot:passSnapshots.get(String(t._id))||0,tripId:t.tripId,site:t.site,dutyKind:t.dutyKind,adhocService:t.adhocService,distanceBand:t.distanceBand,parkingSnapshot:t.parkingSnapshot,calculation:t.calculation,subtotal:t.subtotal,vehicleNumber:t.vehicleNumber,vehicleType:t.vehicleType,
     periodFrom:t.periodFrom,periodTo:t.periodTo,pickupLocation:t.pickupLocation,dropLocation:t.dropLocation,
     entries:t.entries,totalHours:t.totalHours,baseDutyHours:t.baseDutyHours,overtimeHours:t.overtimeHours,
     baseAmount:t.baseAmount,overtimeAmount:t.overtimeAmount,extraAmount:t.extraAmount,totalAmount:t.totalAmount,

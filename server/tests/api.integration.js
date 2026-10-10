@@ -725,14 +725,15 @@ test(
       const two={...input,periodFrom:"2026-06-03",periodTo:"2026-06-03",entries:[{...input.entries[0],date:"2026-06-03"}]};const next=await post("/trips",{...two,status:"Submitted",expectedTotal:1542});assert.equal(next.status,201,JSON.stringify(next.body));
       const km={...input,site:"VVR",adhocService:"Kilometre",distanceBand:"0-50",distanceKm:40};const k=await post("/trips/preview",km);assert.equal(k.status,200,JSON.stringify(k.body));assert.equal(k.body.data.calculation.totalAmount,2500);
       assert.equal((await post("/trips/preview",{...input,site:"VVR"})).status,400);
+      assert.equal((await post("/masters/accPasses",{customerId:refs.customers._id,site:"Inbound",month:"2026-06",amount:7500})).status,201);
       const file=await get("/exports/trips.xlsx?site=Inbound&vehicleId="+v._id+"&from=2026-06-01&to=2026-06-30").buffer(true).parse((res,done)=>{const chunks=[];res.on("data",b=>chunks.push(b));res.on("end",()=>done(null,Buffer.concat(chunks)));res.on("error",done);});assert.equal(file.status,200,JSON.stringify(file.body));
       const wb=XLSX.read(file.body,{type:"buffer"}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.equal(rows[0][11],2484);assert.equal(rows[1][9],"3:00");assert.equal(rows[1][11],600);assert.equal(rows[2][11],7500);assert.equal(rows[3][11],10584);assert.equal(rows[4][3],"CHA NAME");assert.equal(rows[4].length,12);assert.ok(rows.some(row=>row.includes("DHL Representatives Sign")&&row.includes("Vendor Sign")));
       for(const id of [created.body.data._id,next.body.data._id])assert.equal((await post("/trips/"+id+"/status",{status:"Approved"})).status,200);
       const invoiceInput={customerId:refs.customers._id,billingType:"Adhoc",site:"Inbound",tripIds:[created.body.data._id,next.body.data._id],periodFrom:"2026-06-01",periodTo:"2026-06-30",invoiceDate:"2026-07-01",dueDate:"2026-08-01",stateCode:"27",placeOfSupply:"Maharashtra",cgstRate:9,sgstRate:9,taxConfirmed:true,roundToRupee:false};
-      const bill=await post("/invoices/preview",invoiceInput);assert.equal(bill.status,200,JSON.stringify(bill.body));assert.equal(bill.body.data.baseAmount,10584);assert.equal(bill.body.data.lineItems.find(l=>l.category==="Adhoc monthly parking").amount,7500);
+      const bill=await post("/invoices/preview",invoiceInput);assert.equal(bill.status,200,JSON.stringify(bill.body));assert.equal(bill.body.data.baseAmount,10584);assert.equal(bill.body.data.lineItems.find(l=>l.category==="ACC daily & monthly pass").amount,7500);
       const issued=await post("/invoices",{...invoiceInput,expectedTotal:bill.body.data.totalAmount,reviewToken:bill.body.data.reviewToken});assert.equal(issued.status,201,JSON.stringify(issued.body));assert.equal((await get("/exports/invoices/"+issued.body.data._id+".pdf")).status,200);
       const draft=await post("/trips",{...two,status:"Draft",expectedTotal:1542});assert.equal(draft.status,201);assert.equal((await post("/trips/"+draft.body.data._id+"/status",{status:"Submitted"})).status,200);assert.equal((await post("/trips/"+draft.body.data._id+"/status",{status:"Approved"})).status,200);
-      const followup=await post("/invoices/preview",{...invoiceInput,tripIds:[draft.body.data._id]});assert.equal(followup.status,200,JSON.stringify(followup.body));assert.equal(followup.body.data.baseAmount,1542);assert.ok(!followup.body.data.lineItems.some(l=>l.category==="Adhoc monthly parking"));
+      const followup=await post("/invoices/preview",{...invoiceInput,tripIds:[draft.body.data._id]});assert.equal(followup.status,200,JSON.stringify(followup.body));assert.equal(followup.body.data.baseAmount,1542);assert.ok(!followup.body.data.lineItems.some(l=>l.category==="ACC daily & monthly pass"));
     });
   },
 );
@@ -767,4 +768,19 @@ test("site pages and Excel include only the chosen site and inclusive date range
   const file=await get("/exports/trips.xlsx?"+q).buffer(true).parse((res,done)=>{const chunks=[];res.on("data",b=>chunks.push(b));res.on("end",()=>done(null,Buffer.concat(chunks)));res.on("error",done);});assert.equal(file.status,200);
   const wb=XLSX.read(file.body,{type:"buffer"});assert.equal(wb.SheetNames.length,1);const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.ok(rows.some(row=>row.includes("FILTER-IN")));assert.ok(!rows.some(row=>row.includes("FILTER-OUT")||row.includes("FILTER-AUG")));
  }finally{await Trip.deleteMany({_id:{$in:docs.map(t=>t._id)}});}
+});
+test("ACC passes save/edit by customer-site-month and protect billed amounts",async()=>{
+ const {Customer,AccPass,BillingClaim}=await import("../models/index.js");
+ const customer=await Customer.create({companyName:"ACC test customer",archived:false});
+ const call=(method,url,data)=>request(app)[method]("/api"+url).set("Authorization","Bearer "+token).set("X-Forwarded-For","203.0.113.44").send(data);
+ const input={customerId:String(customer._id),site:"Inbound",month:"2026-07",amount:7500};
+ try{
+  const created=await call("post","/masters/accPasses",input);assert.equal(created.status,201,JSON.stringify(created.body));
+  const pass=await AccPass.findOne({customerId:customer._id}),url="/masters/accPasses/"+pass._id;
+  assert.equal((await call("post","/masters/accPasses",input)).status,409);
+  assert.equal((await call("patch",url,{...input,amount:8000})).status,200);
+  await BillingClaim.create({key:`acc-pass:${customer._id}:Inbound:2026-07`,invoiceId:new mongoose.Types.ObjectId()});
+  assert.equal((await call("patch",url,{...input,amount:9000})).status,409);
+  assert.equal((await call("delete",url)).status,409);
+ }finally{await BillingClaim.deleteMany({key:`acc-pass:${customer._id}:Inbound:2026-07`});await AccPass.deleteMany({customerId:customer._id});await Customer.deleteOne({_id:customer._id});}
 });

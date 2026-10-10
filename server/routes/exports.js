@@ -3,7 +3,7 @@ import XLSX from "xlsx-js-style";
 import {brandedHeaders} from "../services/brandedImportService.js";
 import { getCompanyProfile } from "../services/companyProfileService.js";
 import { Router } from "express";
-import { Trip, Invoice, BrandedLog,WeeklyOff,Vehicle,FleetRate,FuelCharge } from "../models/index.js";
+import { AccPass, Trip, Invoice, BrandedLog,WeeklyOff,Vehicle,FleetRate,FuelCharge } from "../models/index.js";
 import { operations } from "../middleware/auth.js";
 import { id } from "../validators/index.js";
 import {
@@ -72,6 +72,7 @@ r.get(
         return send(res,brandedWorkbook(logs,vehicles,offs,{company:i.companySnapshot,invoice:i}),i.invoiceNumber+"-branded-log","xlsx");
       }
       const profile=i.site;
+      if(i.tripSnapshot?.some(t=>t.adhocService))return send(res,adhocWorkbook(i.tripSnapshot,profile,i.companySnapshot,{from:i.periodFrom?.toISOString().slice(0,10),to:i.periodTo?.toISOString().slice(0,10)}),i.invoiceNumber+"-supporting","xlsx");
         return send(res,profile ? siteWorkbook(i.tripSnapshot || [],profile,i) : await tripWorkbook(i.tripSnapshot || []),i.invoiceNumber + "-supporting","xlsx");
       }
       filter._id = { $in: i.tripIds };
@@ -91,7 +92,8 @@ r.get(
         404,
       );
     const company = await getCompanyProfile();
-    send(res, trips.some(t=>t.adhocService) ? adhocWorkbook(trips,req.query.site,company,{from:req.query.from,to:req.query.to}) : req.query.site ? siteWorkbook(trips,String(req.query.site),undefined,company) : trips.some(t=>t.site) ? await allSitesWorkbook(trips,company) : await tripWorkbook(trips), "lucky-trip-sheet", "xlsx");
+    const passes=await AccPass.find({archived:false,customerId:{$in:trips.map(t=>t.customerId?._id||t.customerId)}}).lean();
+    send(res, trips.some(t=>t.adhocService) ? adhocWorkbook(trips,req.query.site,company,{from:req.query.from,to:req.query.to,passes}) : req.query.site ? siteWorkbook(trips,String(req.query.site),undefined,company) : trips.some(t=>t.site) ? await allSitesWorkbook(trips,company) : await tripWorkbook(trips), "lucky-trip-sheet", "xlsx");
   }),
 );
 r.get(

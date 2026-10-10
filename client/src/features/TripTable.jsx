@@ -3,8 +3,8 @@ import TripRow from "./TripRow";
 import AdhocTripTable from "./AdhocTripTable";
 import { Link } from "react-router-dom";
 import { siteColumns, durationText } from "../../../shared/sites.js";
-export default function TripTable({trips=[]}) {
-  if(trips.some(t=>t.adhocService))return <AdhocTripTable trips={trips}/>;
+export default function TripTable({trips=[],passes=[]}) {
+  if(trips.some(t=>t.adhocService))return <AdhocTripTable trips={trips} passes={passes}/>;
   return <div className="sheet-scroll"><table className="trip-sheet"><thead><tr>{siteColumns.map(([label])=><th key={label}>{label}</th>)}</tr></thead>
     <tbody>{trips.map((t,i)=>{const e=t.entries?.[0] || {},last=t.entries?.at(-1) || e;
       const row={...e,srNo:i+1,date:t.periodFrom.slice(0,10),vehicleNo:t.vehicleNumber,vehicleType:t.vehicleType,
