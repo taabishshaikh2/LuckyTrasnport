@@ -36,13 +36,14 @@ export function TripList({ user }) {
     <div className="form-grid card"><Field name="month" label="Month" type="month" value={month} onChange={update}/><Field name="from" label="From date" type="date" value={from} onChange={update}/><Field name="to" label="To date" type="date" value={to} onChange={update}/><Field name="status" label="Status" value={status} options={[{value:"",label:"All statuses"},... ["Draft","Submitted","Approved","Completed","Invoiced","Cancelled"].map(value=>({value,label:value}))]} onChange={update}/></div>
     {!valid&&<p className="error">To date must be on or after From date.</p>}{error&&<p className="error">{error}</p>}
     <div className="actions">{user.role!=="DRIVER"&&<><button disabled={!valid||archived||records.loading||!!records.error||!records.data?.length||busy} onClick={async()=>{setBusy(true);setError("");try{await download("/exports/trips.xlsx?"+new URLSearchParams({site,from,to,status}),site+"-"+from+"-to-"+to+".xlsx");}catch(e){setError(message(e));}finally{setBusy(false);}}}>{busy?"Exporting…":"Export "+site+" Excel"}</button><label><input type="checkbox" checked={archived} onChange={e=>update("archived",String(e.target.checked))}/> Show archived trips</label></>}</div>
-    {valid&&<State {...records}>{records.data?.length?<><p className="muted">{records.data.length} trips · {date(from)} to {date(to)}</p><TripTable trips={records.data} passes={passes.data||[]}/>{passes.error&&<p className="error">ACC passes could not be loaded. Refresh before reviewing totals.</p>}{archived&&user.role!=="DRIVER"&&<div className="card-grid">{records.data.map(t=><section className="card" key={t._id}><strong>{t.tripId}</strong><button className="quiet" onClick={async()=>{try{await api.post("/trips/"+t._id+"/archive",{archived:false});records.reload();all.reload();}catch(e){setError(message(e));}}}>Restore trip</button></section>)}</div>}</>:<p className="state">No {site} trips in this date range.</p>}</State>}
+    {valid&&<State {...records}>{records.data?.length?<><p className="muted">{records.data.length} trips · {date(from)} to {date(to)}</p><TripTable trips={records.data} passes={passes.data||[]} user={user} onChanged={()=>{records.reload();all.reload();}}/>{passes.error&&<p className="error">ACC passes could not be loaded. Refresh before reviewing totals.</p>}{archived&&user.role!=="DRIVER"&&<div className="card-grid">{records.data.map(t=><section className="card" key={t._id}><strong>{t.tripId}</strong><button className="quiet" onClick={async()=>{try{await api.post("/trips/"+t._id+"/archive",{archived:false});records.reload();all.reload();}catch(e){setError(message(e));}}}>Restore trip</button></section>)}</div>}</>:<p className="state">No {site} trips in this date range.</p>}</State>}
   </>;
 }
 export function TripDetail({ user }) {
+  const [detailQuery]=useSearchParams();
   const { id } = useParams(),
     record = useData("/trips/" + id),
-    [edit, setEdit] = useState(false),
+    [edit, setEdit] = useState(detailQuery.get("edit")==="true"),
     [entries, setEntries] = useState(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -103,7 +104,7 @@ export function TripDetail({ user }) {
   return (
     <State {...record}>
       {t &&
-        (edit ? (
+        (edit && t.status==="Draft" && !t.archived && user.role!=="DRIVER" ? (
           <TripForm
             existing={t}
             onClose={() => {
