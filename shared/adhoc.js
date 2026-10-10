@@ -9,4 +9,4 @@ export function adhocRows(trips,passes=[]){
 export function adhocSummary(rows){const sum=k=>Math.round(rows.reduce((n,r)=>n+Number(r[k]||0),0)*100)/100;return {tripAmount:sum("tripCharges"),otHours:rows.reduce((n,r)=>n+r.gtInHours,0),otAmount:sum("overtimeAmount"),accPass:sum("accPass"),parking:sum("tollParking"),night:sum("nightDetentionAmount"),total:Math.round((sum("tripCharges")+sum("overtimeAmount")+sum("tollParking")+sum("accPass")+sum("nightDetentionAmount"))*100)/100};}
 export function adhocCell(row,key){return ["perTripHours","totalHours","gtInHours"].includes(key)?durationText(row[key]):row[key]??"";}
 
-export function adhocColumns(site){return site==="Inbound"?cityColumns:site==="Outbound"?cityColumns.filter(([,key])=>key!=="mrbArrivalTime").map(column=>column[1]==="chaName"?["HUID NO","huNumber"]:column):kmColumns;}
+export function adhocColumns(site){return site==="Inbound"?cityColumns:site==="Outbound"?[...cityColumns.slice(0,3),cityColumns[4],["HUID NO","huNumber"],...cityColumns.slice(5).filter(([,key])=>key!=="mrbArrivalTime")]:kmColumns;}
