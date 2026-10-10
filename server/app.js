@@ -103,12 +103,13 @@ app.get(
         status: { $in: ["Active", "On Trip"] },
       }),
       tripsThisMonth: await Trip.countDocuments({
+        archived: { $ne: true },
         periodFrom: { $gte: month },
         status: { $ne: "Cancelled" },
       }),
       pendingInvoices: balances.filter((b) => b.outstanding > 0).length,
       outstanding: balances.reduce((s, b) => s + b.outstanding, 0),
-      recentTrips: await Trip.find()
+      recentTrips: await Trip.find({ archived: { $ne: true } })
         .populate("customerId", "companyName")
         .sort({ createdAt: -1 })
         .limit(5),

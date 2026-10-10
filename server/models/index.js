@@ -188,6 +188,7 @@ const entry = new Schema(
 export const Trip = make(
   "Trip",
   {
+    archived: { type: Boolean, default: false },
     adhocService:String,distanceBand:String,nightDetention:Boolean,parkingSnapshot:Number,
     site: String, dutyKind: { type: String, default: "Adhoc" },
     tripId: { type: String, unique: true },

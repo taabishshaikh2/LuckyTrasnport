@@ -1,3 +1,5 @@
+import {invoiceHeader} from "./invoiceHeaderService.js";
+import {isCityInvoice,cityInvoiceRows} from "./invoicePresentationService.js";
 import PDFDocument from "pdfkit";
 export function printableBillingPdf(i, section="all") {
  return new Promise((resolve,reject)=>{
@@ -19,29 +21,46 @@ export function printableBillingPdf(i, section="all") {
   row(headers,true);rows.forEach(r=>row(r));d.y=y+(compact?6:12);
  }
  function invoice(){
-  text(c.name||"LUCKY TRANSPORT SERVICES",true,19,"center");text(c.tagline,false,9,"center");text(c.address,false,8,"center");text([c.email,c.phone].filter(Boolean).join(" | "),false,8,"center");d.moveDown(.5);
-  text(i.status==="Cancelled"?"CANCELLED TAX INVOICE":"TAX INVOICE",true,13,"center");d.moveDown(.5);
-  table(["Invoice details","Invoice to"],[[`Invoice number: ${i.invoiceNumber}\nInvoice date: ${date(i.invoiceDate)}\nPeriod: ${date(i.periodFrom)} to ${date(i.periodTo)}\nDue date: ${date(i.dueDate)}`,`${i.invoicedTo||""}\n${i.billingAddress||""}\nLocation: ${i.location||i.site||""}`],[`GSTIN: ${c.gstin||""}\nSAC: ${i.sacNo||""}\nState code: ${i.stateCode||""}`,`Customer GSTIN: ${i.gstin||i.dhlGstin||""}\nPlace of supply: ${i.placeOfSupply||""}`]],[1,1]);
-  const items=i.lineItems||[];
-  const vehicleCount=new Set(items.filter(l=>l.vehicleNumber).map(l=>l.vehicleNumber)).size;
-  const managerCount=items.filter(l=>l.description.startsWith("Fleet management")).length;
-  const vehicleLabel=`Vehicle monthly fixed transportation charges - ${vehicleCount} ${vehicleCount===1?"vehicle":"vehicles"}`;
-  const managerLabel=`Fleet management charges - ${managerCount} ${managerCount===1?"manager":"managers"}`;
+  invoiceHeader(d,c,W);
+  text(i.status==="Cancelled"?"CANCELLED TAX INVOICE":"TAX INVOICE",true,12,"center");d.y+=7;
+  const put=(value,x,y,width,bold=false,size=8,align="left")=>{d.font(bold?"Times-Bold":"Times-Roman").fontSize(size).fillColor("black").text(String(value||""),x,y,{width,align});};
+  const top=d.y,leftWidth=250,rightX=X+260,address=String(i.billingAddress||"");
+  const metadataHeight=Math.max(83,d.font("Times-Roman").fontSize(8).heightOfString(address,{width:165})+49);
+  const left=[["Invoice Number:",i.invoiceNumber],["Invoice Date:",date(i.invoiceDate)],["Invoice Period From:",date(i.periodFrom)],["Invoice Period To:",date(i.periodTo)],["Due Date:",date(i.dueDate)]];
+  left.forEach(([label,value],n)=>{const y=top+n*metadataHeight/5;put(label,X+3,y,105);put(value,X+110,y,leftWidth-110,false,8,"right");d.moveTo(X+105,y+12).lineTo(X+leftWidth,y+12).lineWidth(.4).stroke();});
+  put("Invoiced To:",rightX,top,70);put(i.invoicedTo,rightX+70,top,W-330,false,8,"right");d.moveTo(rightX+70,top+12).lineTo(X+W,top+12).stroke();
+  put("Address:",rightX,top+18,70);put(address,rightX+70,top+18,W-330,false,8,"right");
+  put("Location:",rightX,top+metadataHeight-16,70);put(i.location||i.site,rightX+70,top+metadataHeight-16,W-330,true,8,"right");
+  d.y=top+metadataHeight+3;
+  const stripY=d.y;
+  const strips=[[`GSTIN: ${c.gstin||""}`,`SAC NO: ${i.sacNo||""}`,`CUSTOMER GSTIN: ${i.gstin||i.dhlGstin||""}`],[`STATE: ${i.state||""}`,`STATE CODE: ${c.stateCode||i.stateCode||""}`,`PLACE OF SUPPLY: ${i.placeOfSupply||""}  STATE CODE: ${i.stateCode||""}`]];
+  strips.forEach((row,r)=>{let x=X;row.forEach((value,k)=>{const w=[150,100,275][k];d.rect(x,stripY+r*17,w,17).lineWidth(.5).stroke();put(value,x+3,stripY+r*17+4,w-6,false,7);x+=w;});});
+  d.y=stripY+34;
+  const items=i.lineItems||[],vehicleCount=new Set(items.filter(l=>l.vehicleNumber).map(l=>l.vehicleNumber)).size,managerCount=items.filter(l=>String(l.description).startsWith("Fleet management")).length;
   const groups=new Map();
-  if(i.billingType==="Variable"){
-   const types=[...new Set((i.narration?.vehicles||[]).map(v=>v.agreement?.vehicleType).filter(Boolean))].join(", ");
-   const month=new Date(i.periodFrom).toLocaleDateString("en-GB",{month:"long",year:"numeric",timeZone:"Asia/Kolkata"}).toUpperCase();
+  if(isCityInvoice(i)){for(const [label,amount] of cityInvoiceRows(i))groups.set(label,amount);}
+  else if(i.billingType==="Variable"){
+   const types=[...new Set((i.narration?.vehicles||[]).map(v=>v.agreement?.vehicleType).filter(Boolean))].join(", "),month=new Date(i.periodFrom).toLocaleDateString("en-GB",{month:"long",year:"numeric",timeZone:"Asia/Kolkata"}).toUpperCase();
    groups.set(`Branded ${types} fleet services - monthly variable transportation charges for ${vehicleCount} ${vehicleCount===1?"vehicle":"vehicles"}, ${month}`,Number(i.baseAmount||0));
    if(Number(i.nonTaxableAmount||0))groups.set("Reimbursement of Domestic Airport Entry Token Charges",Number(i.nonTaxableAmount));
-  }else for(const l of items){const label=l.vehicleNumber?vehicleLabel:l.description.startsWith("Fleet management")?managerLabel:l.description;groups.set(label,(groups.get(label)||0)+Number(l.amount));}
-  const rows=Array.from(groups,([label,amount])=>[label,money(amount)]);
-  rows.push(["Total Amount",money(Number(i.baseAmount||0)+Number(i.nonTaxableAmount||0))],["Total Taxable Amount",money(i.baseAmount)],[`Add Tax: CGST @ ${i.cgstRate||0}%`,money(i.cgstAmount)],[`Add Tax: SGST @ ${i.sgstRate||0}%`,money(i.sgstAmount)]);
-  if(Number(i.igstRate)||Number(i.igstAmount))rows.push([`Add Tax: IGST @ ${i.igstRate||0}%`,money(i.igstAmount)]);
-  rows.push(["Round Off: (+/-)",money(i.roundOff)],["Sub Total Amount",money(i.totalAmount)]);
-  table(["DESCRIPTIONS & PARTICULARS","AMOUNT (INR)"],rows,[4,1]);
-  text("Amount in words",true);text(i.amountInWords);d.moveDown(.5);
-  text("NOTE",true);for(const note of [`PAN: ${c.pan||""}`,`Bank: ${c.bankName||""} | Account: ${c.bankAccount||""} | IFSC: ${c.bankIfsc||""}`,c.disputeClause,c.interestClause,c.paymentClause])if(note)text(note,false,8);
-  d.moveDown();text("For "+(c.name||"Lucky Transport Services"),true,9,"right");d.moveDown();text("Authorised Signatory",false,9,"right");text("Thank you for business",false,8,"center");
+  }else if(i.billingType==="Fixed")for(const l of items){const label=l.vehicleNumber?`Vehicle monthly fixed transportation charges - ${vehicleCount} ${vehicleCount===1?"vehicle":"vehicles"}`:String(l.description).startsWith("Fleet management")?`Fleet management charges - ${managerCount} ${managerCount===1?"manager":"managers"}`:l.description;groups.set(label,(groups.get(label)||0)+Number(l.amount));}
+  else groups.set(i.description||"Transportation charges",Number(i.baseAmount||0)+Number(i.nonTaxableAmount||0));
+  const bodyTop=d.y,amountX=X+W-105;
+  d.rect(X,bodyTop,W,19).fillAndStroke("#dddddd","black");put("DESCRIPTIONS & PARTICULARS",X+3,bodyTop+5,W-111,true,8,"center");put("AMOUNT (INR)",amountX+3,bodyTop+5,99,true,8,"center");
+  let y=bodyTop+29;
+  for(const [label,amount] of groups){put(label,X+5,y,W-120,false,9);const h=d.font("Times-Roman").fontSize(9).heightOfString(label,{width:W-120});put(money(amount),amountX+5,y,95,false,9,"right");y+=Math.max(19,h+8);}
+  const bodyBottom=Math.max(bodyTop+130,y+18);d.rect(X,bodyTop,W,bodyBottom-bodyTop).lineWidth(.5).stroke();d.moveTo(amountX,bodyTop).lineTo(amountX,bodyBottom).stroke();
+  y=bodyBottom;
+  const totals=[["Total Amount",Number(i.baseAmount||0)+Number(i.nonTaxableAmount||0)],["Total Taxable Amount",i.baseAmount],[`Add Tax: CGST @ ${i.cgstRate||0}%`,i.cgstAmount],[`Add Tax: SGST @ ${i.sgstRate||0}%`,i.sgstAmount]];
+  if(Number(i.igstRate)||Number(i.igstAmount))totals.push([`Add Tax: IGST @ ${i.igstRate||0}%`,i.igstAmount]);totals.push(["Round Off: (+/-)",i.roundOff],["Sub Total Amount",i.totalAmount]);
+  totals.forEach(([label,amount],n)=>{if(n===totals.length-1)d.rect(X,y,W,15).fill("#dddddd");d.rect(X,y,W,15).strokeColor("black").stroke();d.moveTo(amountX,y).lineTo(amountX,y+15).stroke();put(label,X+5,y+3,W-115,true,8,"right");put(money(amount),amountX+5,y+3,95,true,8,"right");y+=15;});
+  put("Amount In Words:",X+5,y+9,W-10,true,9);put(i.amountInWords,X+5,y+24,W-10,true,9);const wordsHeight=d.font("Times-Bold").fontSize(9).heightOfString(i.amountInWords||"",{width:W-10});y+=wordsHeight+34;
+  d.rect(X,bodyBottom,W,y-bodyBottom).stroke();
+  const notes=[`Pan Number: ${c.pan||""}`,`GSTIN Number: ${c.gstin||""}`,`Service Accounting Code: ${i.sacNo||""}`,c.disputeClause,c.interestClause,c.paymentClause,`Bank Details: ${c.bankName||""}`,`A/c no: ${c.bankAccount||""}, IFSC code: ${c.bankIfsc||""}`].filter(Boolean).join("\n"),noteWidth=W*.81;
+  const noteHeight=d.font("Times-Roman").fontSize(8).heightOfString(notes,{width:noteWidth-10})+28;
+  if(y+noteHeight+65>800){d.addPage();invoiceHeader(d,c,W);y=d.y;}
+  d.rect(X,y,noteWidth,15).fillAndStroke("#dddddd","black");put("NOTE:",X+4,y+3,noteWidth-8,true,8);put(notes,X+5,y+20,noteWidth-10,false,8);d.rect(X,y,noteWidth,noteHeight).stroke();y+=noteHeight;
+  d.rect(X,y,W,65).stroke();put("For M/s "+(c.name||"Lucky Transport Services"),X+W/2,y+5,W/2-5,true,9,"right");put("Authorised Signatory",X+W/2,y+40,W/2-5,true,9,"right");put("Thank you for Business",X,y+51,W,true,8,"center");d.y=y+65;
  }
  function narration(){
   const variable=i.billingType==="Variable",vs=i.narration?.vehicles||[];
@@ -86,6 +105,6 @@ export function printableBillingPdf(i, section="all") {
   if(variable){table([`Total Variable Cost For ${monthLabel}`,money(Number(i.baseAmount||0)+Number(i.nonTaxableAmount||0))],[],[4,1],7);}else table([`Total ${i.billingType.toLowerCase()} cost before GST`,"AMOUNT (INR)"],[["Total",money(Number(i.baseAmount||0)+Number(i.nonTaxableAmount||0))]],[4,1]);
   d.moveDown();const signY=d.y;d.font("Helvetica-Bold").fontSize(8).text("DHL Supervisor",X,signY,{width:W/2});d.text("Vendor Sign",X+W/2,signY,{width:W/2,align:"right"});
  }
- if(section!=="narration")invoice();if(section!=="invoice"){if(section!=="narration")d.addPage();narration();}d.end();
+ if(section!=="narration")invoice();if(section!=="invoice" && !isCityInvoice(i)){if(section!=="narration")d.addPage();narration();}d.end();
  });
 }

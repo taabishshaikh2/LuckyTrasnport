@@ -18,7 +18,8 @@ const TripForm=props=>props.existing?.adhocService?<AdhocTripForm {...props}/>:<
 import TripTable from "../features/TripTable";
 import { sites } from "../../../shared/sites.js";
 export function TripList({ user }) {
-  const records = useData("/trips"),
+  const [showArchived,setShowArchived]=useState(false);
+  const records = useData("/trips?archived="+showArchived),
     [site,setSite]=useState(""),
     [search, setSearch] = useState(""),
     [status, setStatus] = useState(""),
@@ -48,6 +49,7 @@ export function TripList({ user }) {
         )}
       </div>
       <Field name="site" label="Site" options={[{value:"",label:"All sites"},...sites]} value={site} onChange={(_,v)=>setSite(v)} />
+      {user.role !== "DRIVER" && <label><input type="checkbox" checked={showArchived} onChange={e=>setShowArchived(e.target.checked)}/> Show archived trips</label>}
       <div className="filters">
         <input
           placeholder="Search ID, customer, vehicle, route or driver…"
@@ -93,7 +95,7 @@ export function TripList({ user }) {
           <button
             className="quiet"
             disabled={
-              records.loading ||
+              showArchived || records.loading ||
               !!records.error ||
               exporting ||
               !exportableTrips.length
@@ -143,6 +145,7 @@ export function TripList({ user }) {
                   </Link>
                   <Badge>{t.status}</Badge>
                 </div>
+                {showArchived && user.role !== "DRIVER" && <button className="quiet" onClick={async()=>{try{await api.post("/trips/"+t._id+"/archive",{archived:false});records.reload();}catch(e){setExportError(message(e));}}}>Restore trip</button>}
                 <h3>
                   {t.pickupLocation} → {t.dropLocation}
                 </h3>
@@ -278,7 +281,9 @@ export function TripDetail({ user }) {
             <Calculation value={t.calculation} />
             {user.role !== "DRIVER" && (
               <div className="actions">
-                {t.status === "Draft" && (
+                {!t.archived && ["Draft","Cancelled"].includes(t.status) && <button className="danger" disabled={busy} onClick={async()=>{setBusy(true);try{await api.post("/trips/"+id+"/archive",{archived:true});record.reload();}catch(e){setError(message(e));}finally{setBusy(false);}}}>Archive trip</button>}
+                {t.archived && <p className="notice">Archived. Restore this trip from the archived trips list.</p>}
+                {!t.archived && t.status === "Draft" && (
                   <>
                     <button onClick={() => setEdit(true)}>Edit draft</button>
                     <button

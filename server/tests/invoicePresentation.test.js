@@ -1,0 +1,7 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {cityInvoiceRows,isCityInvoice} from "../services/invoicePresentationService.js";
+import {invoicePdf} from "../services/pdfService.js";
+const i={billingType:"Adhoc",site:"Inbound",invoiceNumber:"QA",periodFrom:"2026-06-01",periodTo:"2026-06-30",invoiceDate:"2026-07-01",dueDate:"2026-08-01",companySnapshot:{name:"LUCKY TRANSPORT SERVICES",address:"Mumbai"},invoicedTo:"QA customer",billingAddress:"Mumbai",baseAmount:10584,nonTaxableAmount:0,totalAmount:12489.12,cgstRate:9,sgstRate:9,cgstAmount:952.56,sgstAmount:952.56,amountInWords:"Rupees Twelve Thousand Four Hundred Eighty Nine and Twelve Paise Only",tripSnapshot:[{site:"Inbound",vehicleType:"8 FT"}],lineItems:[{amount:3084,baseAmount:2484,overtimeAmount:600},{category:"Adhoc monthly parking",amount:7500}]};
+test("city invoice splits base, overtime and monthly passes and reconciles",()=>{const rows=cityInvoiceRows(i);assert.deepEqual(rows.map(r=>r[1]),[2484,600,7500]);assert.equal(rows.reduce((n,r)=>n+r[1],0),i.baseAmount);assert.match(rows[0][0],/Inbound.*8 FT.*JUNE 2026/);assert.ok(isCityInvoice({...i,site:undefined}));});
+test("Inbound and Outbound PDFs contain only the invoice even with all sections requested",async()=>{for(const site of ["Inbound","Outbound"]){const buffer=await invoicePdf({...i,site},{},"all");assert.equal((buffer.toString("latin1").match(/\/Type \/Page\b/g)||[]).length,1);assert.match(buffer.toString("latin1"),/Times-Bold/);}});

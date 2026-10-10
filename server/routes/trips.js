@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Trip, Audit, Vehicle, Driver } from "../models/index.js";
+import { Trip, Audit, Vehicle, Driver, Invoice } from "../models/index.js";
 import { operations } from "../middleware/auth.js";
 import { tripSchema, id } from "../validators/index.js";
 import {
@@ -11,10 +11,25 @@ import { transaction } from "../services/transactionService.js";
 import { wrap, ok, AppError } from "../utils/errors.js";
 import { z } from "zod";
 const r = Router();
+r.post("/:id/archive", operations, wrap(async (req,res)=>{
+  id.parse(req.params.id);
+  const {archived}=z.object({archived:z.boolean()}).parse(req.body);
+  const result=await transaction(async session=>{
+    const trip=await Trip.findById(req.params.id).session(session);
+    if(!trip)throw new AppError("Trip not found",404);
+    if(!["Draft","Cancelled"].includes(trip.status))throw new AppError("Cancel the trip before archiving it",409);
+    if(await Invoice.exists({tripIds:trip._id,status:{$ne:"Cancelled"}}).session(session))throw new AppError("This trip belongs to an invoice. Cancel the invoice first",409);
+    const previous=trip.toObject();
+    trip.archived=archived;trip.updatedBy=req.user._id;
+    await trip.save({session});
+    await Audit.create([{entity:"Trip",entityId:trip._id,previousValue:previous,newValue:trip.toObject(),reason:archived?"Trip archived":"Trip restored",changedBy:req.user._id}],{session});
+    return trip;
+  });ok(res,result);
+}));
 r.get(
   "/",
   wrap(async (req, res) => {
-    const filter = {};
+    const filter = { archived: req.query.archived === "true" ? true : { $ne: true } };
     if (req.user.role === "DRIVER") {
       if (!req.user.driverId) return ok(res, []);
       filter.driverId = req.user.driverId;
@@ -93,7 +108,7 @@ r.patch(
     const input = tripSchema.parse(req.body);
     const result = await transaction(async (s) => {
       const old = await Trip.findById(req.params.id).session(s);
-      if (!old || old.status !== "Draft")
+      if (!old || old.archived || old.status !== "Draft")
         throw new AppError("Only draft trips can be edited");
       const originalId = old.tripId;
       const previous = old.toObject();
@@ -147,7 +162,7 @@ r.post(
       .parse(req.body);
     const result = await transaction(async (s) => {
       const t = await Trip.findById(req.params.id).session(s);
-      if (!t) throw new AppError("Trip not found", 404);
+      if (!t || t.archived) throw new AppError("Trip not found", 404);
       const transitions = {
         Draft: ["Submitted", "Cancelled"],
         Submitted: ["Approved", "Cancelled"],

@@ -1,3 +1,4 @@
+import {adhocRows} from "../../shared/adhoc.js";
 import { Router } from "express";
 import Decimal from "decimal.js";
 import { BrandedLog, WeeklyOff, Invoice, Trip, Customer, Audit, BillingClaim, Agreement, Vehicle, FleetManager, ShiftSettings, FleetRate, FuelCharge, VehicleExpense, AirportExpense } from "../models/index.js";
@@ -51,8 +52,14 @@ async function prepare(input, session) {
     if (trips.some(t=>t.periodFrom<from || t.periodTo>to)) throw new AppError("Selected trips must fall entirely inside the billing period");
     lines=trips.map(t=>({description:t.tripId + " - " + t.pickupLocation + " to " + t.dropLocation,
       vehicleId:String(t.vehicleId),vehicleNumber:t.vehicleNumber,quantity:1,rate:t.totalAmount,amount:t.totalAmount,taxable:true,
-      baseAmount:t.baseAmount,overtimeHours:t.overtimeHours,overtimeAmount:t.overtimeAmount,tollParking:t.extraAmount}));
+      baseAmount:t.baseAmount,overtimeHours:t.overtimeHours,overtimeAmount:t.overtimeAmount,tollParking:t.extraAmount,nightDetentionAmount:t.calculation?.nightDetentionAmount||0}));
     keys=input.tripIds.map(id=>"adhoc:"+id);
+    for(const row of adhocRows(trips.filter(t=>t.adhocService))){
+      if(!row.tollParking)continue;
+      const trip=trips.find(t=>String(t._id)===String(row._id)),month=row.date.slice(0,7),key=`adhoc-parking:${trip.vehicleId}:${month}`;
+      if(await BillingClaim.exists({key}).session(session||null))continue;
+      lines.push({description:`Monthly passes / toll, entry & parking - ${month}`,category:"Adhoc monthly parking",vehicleId:String(trip.vehicleId),vehicleNumber:trip.vehicleNumber,quantity:1,rate:row.tollParking,amount:row.tollParking,taxable:true});keys.push(key);
+    }
   } else {
     const fleet=await prepareFleet(input,session);
     ({trips,lines,vehicles,keys}=fleet);
@@ -65,7 +72,7 @@ async function prepare(input, session) {
   const totals=totalLines(lines);
   const calc=calculateInvoice(totals.taxable,{...input,nonTaxableAmount:totals.nonTaxable},profile.stateCode);
   const invoiceMonth=from.toLocaleDateString("en-IN",{month:"long",year:"numeric",timeZone:"Asia/Kolkata"});
-  const tripSnapshot=trips.map(t=>({tripId:t.tripId,site:t.site,dutyKind:t.dutyKind,subtotal:t.subtotal,vehicleNumber:t.vehicleNumber,vehicleType:t.vehicleType,
+  const tripSnapshot=trips.map(t=>({tripId:t.tripId,site:t.site,dutyKind:t.dutyKind,adhocService:t.adhocService,distanceBand:t.distanceBand,parkingSnapshot:t.parkingSnapshot,calculation:t.calculation,subtotal:t.subtotal,vehicleNumber:t.vehicleNumber,vehicleType:t.vehicleType,
     periodFrom:t.periodFrom,periodTo:t.periodTo,pickupLocation:t.pickupLocation,dropLocation:t.dropLocation,
     entries:t.entries,totalHours:t.totalHours,baseDutyHours:t.baseDutyHours,overtimeHours:t.overtimeHours,
     baseAmount:t.baseAmount,overtimeAmount:t.overtimeAmount,extraAmount:t.extraAmount,totalAmount:t.totalAmount,

@@ -1,3 +1,5 @@
+import {invoiceHeader} from "./invoiceHeaderService.js";
+import {isCityInvoice} from "./invoicePresentationService.js";
 import { printableBillingPdf } from "./printableBillingPdf.js";
 import PDFDocument from "pdfkit";
 import { siteTripRows } from "./excelExportService.js";
@@ -9,7 +11,7 @@ function billingPdf(i,balance) {
     const c=i.companySnapshot, money=n=>Number(n || 0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
     const text=(s,bold=false,size=9)=>d.font(bold?"Helvetica-Bold":"Helvetica").fontSize(size).fillColor("#142d4e").text(String(s || ""),d.page.margins.left,d.y,{width:d.page.width-d.page.margins.left-d.page.margins.right});
     const date=v=>new Date(v).toLocaleDateString("en-IN");
-    text(c.name,true,17);text(c.tagline);text(c.address);text([c.phone,c.email].filter(Boolean).join(" | "));d.moveDown(.5);
+    invoiceHeader(d,c);
     text(i.status === "Cancelled" ? "CANCELLED TAX INVOICE" : "TAX INVOICE",true,13);
     text("Invoice: "+i.invoiceNumber+"     Date: "+date(i.invoiceDate)+"     Due: "+date(i.dueDate));
     text("Period: "+date(i.periodFrom)+" to "+date(i.periodTo)+"     "+i.billingType+" / "+(i.site || i.location));
@@ -63,7 +65,7 @@ function billingPdf(i,balance) {
 }
 
 export function invoicePdf(i, balance, section="all") {
-  if (["Fixed","Variable"].includes(i.billingType)) return printableBillingPdf(i,section);
+  if (isCityInvoice(i) || ["Fixed","Variable"].includes(i.billingType)) return printableBillingPdf(i,section);
   if (i.lineItems?.length) return billingPdf(i,balance);
   return new Promise((resolve, reject) => {
     const d = new PDFDocument({ size: "A4", margin: 45 });
@@ -85,13 +87,7 @@ export function invoicePdf(i, balance, section="all") {
         .fillColor("#24364b")
         .text(label + ": " + (value || "—"))
         .moveDown(0.5);
-    d.font("Helvetica-Bold").fontSize(20).fillColor("#142d4e").text(c.name);
-    d.font("Helvetica")
-      .fontSize(10)
-      .text(c.tagline || "")
-      .text(c.address || "")
-      .text([c.phone, c.email].filter(Boolean).join(" | "));
-    d.moveDown();
+    invoiceHeader(d,c);
     d.font("Helvetica-Bold")
       .fontSize(16)
       .text(i.status === "Cancelled" ? "CANCELLED TAX INVOICE" : "TAX INVOICE");

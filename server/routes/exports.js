@@ -56,7 +56,7 @@ r.get(
 r.get(
   "/trips.xlsx",
   wrap(async (req, res) => {
-    const filter = {};
+    const filter = { archived: { $ne: true } };
     if (req.query.site) filter.site=String(req.query.site);
     for (const key of ["customerId", "vehicleId", "routeId"])
       if (req.query[key]) filter[key] = id.parse(req.query[key]);

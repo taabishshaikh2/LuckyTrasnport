@@ -727,7 +727,32 @@ test(
       assert.equal((await post("/trips/preview",{...input,site:"VVR"})).status,400);
       const file=await get("/exports/trips.xlsx?site=Inbound&vehicleId="+v._id+"&from=2026-06-01&to=2026-06-30").buffer(true).parse((res,done)=>{const chunks=[];res.on("data",b=>chunks.push(b));res.on("end",()=>done(null,Buffer.concat(chunks)));res.on("error",done);});assert.equal(file.status,200,JSON.stringify(file.body));
       const wb=XLSX.read(file.body,{type:"buffer"}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.equal(rows[0][11],2484);assert.equal(rows[1][9],"3:00");assert.equal(rows[1][11],600);assert.equal(rows[2][11],7500);assert.equal(rows[3][11],10584);assert.equal(rows[4][3],"CHA NAME");assert.equal(rows[4].length,12);assert.ok(rows.some(row=>row.includes("DHL Representatives Sign")&&row.includes("Vendor Sign")));
-      const draft=await post("/trips",{...two,status:"Draft",expectedTotal:1542});assert.equal(draft.status,201);assert.equal((await post("/trips/"+draft.body.data._id+"/status",{status:"Submitted"})).status,200);
+      for(const id of [created.body.data._id,next.body.data._id])assert.equal((await post("/trips/"+id+"/status",{status:"Approved"})).status,200);
+      const invoiceInput={customerId:refs.customers._id,billingType:"Adhoc",site:"Inbound",tripIds:[created.body.data._id,next.body.data._id],periodFrom:"2026-06-01",periodTo:"2026-06-30",invoiceDate:"2026-07-01",dueDate:"2026-08-01",stateCode:"27",placeOfSupply:"Maharashtra",cgstRate:9,sgstRate:9,taxConfirmed:true,roundToRupee:false};
+      const bill=await post("/invoices/preview",invoiceInput);assert.equal(bill.status,200,JSON.stringify(bill.body));assert.equal(bill.body.data.baseAmount,10584);assert.equal(bill.body.data.lineItems.find(l=>l.category==="Adhoc monthly parking").amount,7500);
+      const issued=await post("/invoices",{...invoiceInput,expectedTotal:bill.body.data.totalAmount,reviewToken:bill.body.data.reviewToken});assert.equal(issued.status,201,JSON.stringify(issued.body));assert.equal((await get("/exports/invoices/"+issued.body.data._id+".pdf")).status,200);
+      const draft=await post("/trips",{...two,status:"Draft",expectedTotal:1542});assert.equal(draft.status,201);assert.equal((await post("/trips/"+draft.body.data._id+"/status",{status:"Submitted"})).status,200);assert.equal((await post("/trips/"+draft.body.data._id+"/status",{status:"Approved"})).status,200);
+      const followup=await post("/invoices/preview",{...invoiceInput,tripIds:[draft.body.data._id]});assert.equal(followup.status,200,JSON.stringify(followup.body));assert.equal(followup.body.data.baseAmount,1542);assert.ok(!followup.body.data.lineItems.some(l=>l.category==="Adhoc monthly parking"));
     });
   },
 );
+
+test("trip archive hides records and supports restoration", async () => {
+      // Give this independent scenario its own proxy client IP and rate-limit window.
+      const get=url=>request(app).get("/api"+url).set("X-Forwarded-For","203.0.113.20").set("Authorization","Bearer "+token);
+      const post=(url,data,t=token)=>request(app).post("/api"+url).set("X-Forwarded-For","203.0.113.20").set("Authorization","Bearer "+t).send(data);
+      const trip=await Trip.create({tripId:"ARCHIVE-TEST",status:"Draft",periodFrom:new Date(),periodTo:new Date(),vehicleNumber:"TEST",totalAmount:0});
+      try {
+        assert.equal((await post("/trips/"+trip._id+"/archive",{archived:true},driver)).status,403);
+        assert.equal((await post("/trips/"+trip._id+"/archive",{archived:true})).status,200);
+        assert.ok(!(await get("/trips")).body.data.some(v=>v._id===String(trip._id)));
+        assert.ok((await get("/trips?archived=true")).body.data.some(v=>v._id===String(trip._id)));
+        assert.ok(!(await get("/dashboard")).body.data.recentTrips.some(v=>v._id===String(trip._id)));
+        assert.equal((await get("/exports/trips.xlsx?tripId="+trip._id)).status,404);
+        assert.equal((await post("/trips/"+trip._id+"/status",{status:"Submitted"})).status,404);
+        assert.equal((await post("/trips/"+trip._id+"/archive",{archived:false})).status,200);
+        assert.ok((await get("/trips")).body.data.some(v=>v._id===String(trip._id)));
+        await Trip.updateOne({_id:trip._id},{$set:{status:"Approved"}});
+        assert.equal((await post("/trips/"+trip._id+"/archive",{archived:true})).status,409);
+      } finally { await Trip.deleteOne({_id:trip._id}); }
+    });
