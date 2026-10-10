@@ -786,3 +786,7 @@ main {
 .trip-sheet th,.trip-sheet td { border:1px solid #dbe3ed; padding:10px; text-align:left; white-space:nowrap; }
 .trip-sheet th { background:#edf3f8; color:#183b5c; }
 .trip-sheet tbody tr:nth-child(even) { background:#f8fafc; }
+
+.trip-sheet .clickable-trip-row { cursor: pointer; }
+.trip-sheet .clickable-trip-row:hover td, .trip-sheet .clickable-trip-row:focus-visible td { background: #e7eff8; }
+.trip-sheet .clickable-trip-row:focus-visible { outline: 2px solid #163454; outline-offset: -2px; }

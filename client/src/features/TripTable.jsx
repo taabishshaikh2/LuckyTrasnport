@@ -1,4 +1,5 @@
 import React from "react";
+import TripRow from "./TripRow";
 import AdhocTripTable from "./AdhocTripTable";
 import { Link } from "react-router-dom";
 import { siteColumns, durationText } from "../../../shared/sites.js";
@@ -12,7 +13,7 @@ export default function TripTable({trips=[]}) {
         perTripHours:t.baseDutyHours ?? e.perTripHours,totalHours:t.totalHours,gtInHours:t.overtimeHours ?? e.gtInHours,
         sdcCharges:t.dutyKind === "Branded" && t.rateSnapshot?.source !== "TripRate" ? e.sdcCharges : t.subtotal ?? t.totalAmount-t.extraAmount,
         tollParking:t.dutyKind === "Branded" && t.rateSnapshot?.source !== "TripRate" ? e.tollParking : t.extraAmount,totalServiceCharges:t.dutyKind === "Branded" && t.rateSnapshot?.source !== "TripRate" ? e.totalServiceCharges : t.totalAmount};
-      return <tr key={t._id}>{siteColumns.map(([,key])=><td key={key}>{key === "srNo" ? <Link to={"/trips/"+t._id}>{i+1}</Link> :
-        ["perTripHours","totalHours","gtInHours"].includes(key) ? durationText(row[key]) : row[key] ?? "—"}</td>)}</tr>;
+      return <TripRow key={t._id} id={t._id} label={t.tripId}>{siteColumns.map(([,key])=><td key={key}>{key === "srNo" ? <Link to={"/trips/"+t._id}>{i+1}</Link> :
+        ["perTripHours","totalHours","gtInHours"].includes(key) ? durationText(row[key]) : row[key] ?? "—"}</td>)}</TripRow>;
     })}</tbody></table></div>;
 }
