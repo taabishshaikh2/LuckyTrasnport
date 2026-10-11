@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { sites } from "../../shared/sites.js";
-const site = z.enum([...sites.map(s => s.value),"Branded"]);
+const site = z.string().trim().min(1).max(120);
 const str = z.string().trim();
 const required = str.min(1).max(250);
 const optional = str.max(2000).optional().default("");
@@ -121,7 +121,7 @@ export const masterSchemas = {
     notes: optional,
   }),
   routes: z.object({
-    routeName: required,
+    routeName: required, site:optional,
     pickupLocation: required,
     dropLocation: required,
     category: z.enum(["Inbound", "Outbound", "Regular", "Special"]),
@@ -232,6 +232,7 @@ export const invoiceSchema = z
     vehicleIds: z.array(id).max(100).default([]).refine(v => new Set(v).size === v.length, "Duplicate vehicle selection"),
     managerIds:z.array(id).max(100).default([]).refine(v=>new Set(v).size===v.length,"Duplicate manager selection"),
     metrics: z.array(vehicleMetrics).max(100).default([]).refine(v => new Set(v.map(m => m.vehicleId)).size === v.length, "Duplicate vehicle metrics"),
+    includeParking:z.boolean().default(true),
     periodCharges: z.array(periodChargeSchema).max(100).default([]),
     tripIds: z
       .array(id)

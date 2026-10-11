@@ -1,3 +1,4 @@
+import {siteOptions} from "../../../shared/routeSites.js";
 import React, { useState } from "react";
 import { sites } from "../../../shared/sites.js";
 import {useData} from "../hooks/useData";
@@ -6,7 +7,8 @@ import { api, message, download } from "../api/client";
 import { Field, Calculation } from "../components/UI";
 import { AssignmentFields, initialTrip } from "../features/TripForm";
 export default function Import() {
-  const [query]=useSearchParams(),selected=sites.find(s=>s.value===query.get("site")),customers=useData("/masters/customers");
+  const routeRecords=useData("/masters/routes"),siteChoices=siteOptions(routeRecords.data||[]);
+  const [query]=useSearchParams(),selected=siteChoices.find(s=>s.value===query.get("site"))|| (query.get("site")?{value:query.get("site"),origin:"",destination:""}:null),customers=useData("/masters/customers");
   const nav = useNavigate(),
     [file, setFile] = useState(null),
     [batch, setBatch] = useState(null),
@@ -19,7 +21,7 @@ export default function Import() {
     [durationFormat, setDurationFormat] = useState("hoursMinutes"),
     [result, setResult] = useState(null);
   function change(k, v) {
-    setHeader((x) => ({ ...x, [k]: v,...(k==="site"?{adhocService:["Inbound","Outbound"].includes(v)?"City":"Kilometre",pickupLocation:sites.find(s=>s.value===v)?.origin||"",dropLocation:sites.find(s=>s.value===v)?.destination||""}:{}) }));
+    setHeader((x) => ({ ...x, [k]: v,...(k==="site"?{adhocService:["Inbound","Outbound"].includes(v)?"City":"Kilometre",pickupLocation:siteChoices.find(s=>s.value===v)?.origin||"",dropLocation:siteChoices.find(s=>s.value===v)?.destination||""}:{}) }));
     setPreview(null);
   }
   async function upload(e) {
@@ -98,7 +100,7 @@ export default function Import() {
         Upload → map columns → validate → confirm. Each challan becomes one
         draft trip; repeated rows for one challan stay together. Vehicle numbers are matched automatically.
       </p>
-      <Field name="site" label="Site / Excel format" options={sites} value={header.site} onChange={change} />
+      <Field name="site" label="Site / Excel format" options={siteChoices} value={header.site} onChange={change} />
       <button
         className="quiet"
         onClick={async () => {

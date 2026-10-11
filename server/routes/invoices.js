@@ -38,7 +38,7 @@ r.get(
 async function prepare(input, session) {
   const c = await Customer.findById(input.customerId).session(session || null);
   if (!c || c.archived) throw new AppError("Customer unavailable");
-  let trips, lines, vehicles=[], keys, from, to; const passSnapshots=new Map();
+  let trips, lines, vehicles=[], keys, from, to; const passSnapshots=new Map(),parkingSnapshots=new Map();
   if (input.billingType === "Adhoc") {
     trips = await Trip.find({_id:{$in:input.tripIds},customerId:c._id,
       status:{$in:["Approved","Completed"]}, ...(input.site ? {site:input.site} : {}),
@@ -55,19 +55,19 @@ async function prepare(input, session) {
       baseAmount:t.baseAmount,overtimeHours:t.overtimeHours,overtimeAmount:t.overtimeAmount,tollParking:t.extraAmount,nightDetentionAmount:t.calculation?.nightDetentionAmount||0}));
     keys=input.tripIds.map(id=>"adhoc:"+id);
     const passes=await AccPass.find({customerId:c._id,archived:false}).session(session||null).lean();
-    for(const row of adhocRows(trips.filter(t=>t.adhocService),passes)){
+    for(const row of adhocRows(trips.filter(t=>t.adhocService),passes,input.includeParking)){
       if(isCity(row.site)&&row.accPass){
        const key=`acc-pass:${c._id}:${row.site}:${row.date.slice(0,7)}`;
        if(!await BillingClaim.exists({key}).session(session||null)){
         if(session)await AccPass.updateOne({customerId:c._id,site:row.site,month:row.date.slice(0,7),archived:false},{$inc:{referenceVersion:1}},{session:session||undefined});
-        lines.push({description:`ACC daily & monthly pass - ${row.site} - ${row.date.slice(0,7)}`,category:"ACC daily & monthly pass",quantity:1,rate:row.accPass,amount:row.accPass,taxable:true});keys.push(key);passSnapshots.set(String(row._id),row.accPass);
+        lines.push({description:`ACC daily & monthly pass - ${row.site} - ${row.date.slice(0,7)}`,category:"ACC daily & monthly pass",quantity:1,rate:row.accPass,amount:row.accPass,taxable:false});keys.push(key);passSnapshots.set(String(row._id),row.accPass);
        }
       }
 
       if(!row.tollParking)continue;
       const trip=trips.find(t=>String(t._id)===String(row._id)),month=row.date.slice(0,7),key=`adhoc-parking:${trip.vehicleId}:${month}`;
       if(await BillingClaim.exists({key}).session(session||null))continue;
-      lines.push({description:`Monthly passes / toll, entry & parking - ${month}`,category:"Adhoc monthly parking",vehicleId:String(trip.vehicleId),vehicleNumber:trip.vehicleNumber,quantity:1,rate:row.tollParking,amount:row.tollParking,taxable:true});keys.push(key);
+      lines.push({description:`Monthly passes / toll, entry & parking - ${month}`,category:"Adhoc monthly parking",vehicleId:String(trip.vehicleId),vehicleNumber:trip.vehicleNumber,quantity:1,rate:row.tollParking,amount:row.tollParking,taxable:false});keys.push(key);parkingSnapshots.set(String(row._id),row.tollParking);
     }
   } else {
     const fleet=await prepareFleet(input,session);
@@ -81,7 +81,7 @@ async function prepare(input, session) {
   const totals=totalLines(lines);
   const calc=calculateInvoice(totals.taxable,{...input,nonTaxableAmount:totals.nonTaxable},profile.stateCode);
   const invoiceMonth=from.toLocaleDateString("en-IN",{month:"long",year:"numeric",timeZone:"Asia/Kolkata"});
-  const tripSnapshot=trips.map(t=>({accPassSnapshot:passSnapshots.get(String(t._id))||0,tripId:t.tripId,site:t.site,dutyKind:t.dutyKind,adhocService:t.adhocService,distanceBand:t.distanceBand,parkingSnapshot:t.parkingSnapshot,calculation:t.calculation,subtotal:t.subtotal,vehicleNumber:t.vehicleNumber,vehicleType:t.vehicleType,
+  const tripSnapshot=trips.map(t=>({accPassSnapshot:passSnapshots.get(String(t._id))||0,tripId:t.tripId,site:t.site,dutyKind:t.dutyKind,adhocService:t.adhocService,distanceBand:t.distanceBand,parkingSnapshot:t.adhocService?(parkingSnapshots.get(String(t._id))||0):t.parkingSnapshot,calculation:t.calculation,subtotal:t.subtotal,vehicleNumber:t.vehicleNumber,vehicleType:t.vehicleType,
     periodFrom:t.periodFrom,periodTo:t.periodTo,pickupLocation:t.pickupLocation,dropLocation:t.dropLocation,
     entries:t.entries,totalHours:t.totalHours,baseDutyHours:t.baseDutyHours,overtimeHours:t.overtimeHours,
     baseAmount:t.baseAmount,overtimeAmount:t.overtimeAmount,extraAmount:t.extraAmount,totalAmount:t.totalAmount,

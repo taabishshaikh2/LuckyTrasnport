@@ -16,7 +16,7 @@ export function signatureFooter(sheet){
 }
 function signedWorkbook(book){for(const sheet of Object.values(book.Sheets))signatureFooter(sheet);return XLSX.write(book,{type:"buffer",bookType:"xlsx"});}
 export function adhocWorkbook(trips,site,company,period={}){
- const wb=XLSX.utils.book_new(),all=adhocRows(trips,period.passes||[]);
+ const wb=XLSX.utils.book_new(),all=adhocRows(trips,period.passes||[],period.includeParking!==false);
  for(const siteName of site?[site]:[...new Set(all.map(r=>r.site))]){
   const rows=all.filter(r=>r.site===siteName),city=isCity(siteName),cols=adhocColumns(siteName),width=cols.length,summary=adhocSummary(rows);
   const data=[],merges=[],dates=rows.map(r=>r.date).sort(),rateValues=[...new Set(rows.filter(r=>r.gtInHours>0).map(r=>r.overtimeRate))];

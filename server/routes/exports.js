@@ -93,7 +93,7 @@ r.get(
       );
     const company = await getCompanyProfile();
     const passes=await AccPass.find({archived:false,customerId:{$in:trips.map(t=>t.customerId?._id||t.customerId)}}).lean();
-    send(res, trips.some(t=>t.adhocService) ? adhocWorkbook(trips,req.query.site,company,{from:req.query.from,to:req.query.to,passes}) : req.query.site ? siteWorkbook(trips,String(req.query.site),undefined,company) : trips.some(t=>t.site) ? await allSitesWorkbook(trips,company) : await tripWorkbook(trips), "lucky-trip-sheet", "xlsx");
+    send(res, trips.some(t=>t.adhocService) ? adhocWorkbook(trips,req.query.site,company,{from:req.query.from,to:req.query.to,passes,includeParking:req.query.includeParking!=="false"}) : req.query.site ? siteWorkbook(trips,String(req.query.site),undefined,company) : trips.some(t=>t.site) ? await allSitesWorkbook(trips,company) : await tripWorkbook(trips), "lucky-trip-sheet", "xlsx");
   }),
 );
 r.get(

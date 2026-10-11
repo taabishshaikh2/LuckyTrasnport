@@ -1,3 +1,4 @@
+import {siteOptions} from "../../../shared/routeSites.js";
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useData } from "../hooks/useData";
@@ -27,9 +28,10 @@ export function Narration({invoice}) {
   </section>;
 }
 export default function BillingInvoiceForm() {
+  const routeRecords=useData("/masters/routes");
   const nav=useNavigate(),customers=useData("/masters/customers"),trips=useData("/trips"),agreements=useData("/masters/agreements"),vehicles=useData("/masters/vehicles"),shifts=useData("/settings/shifts"),managers=useData("/masters/fleetManagers");
   const [value,setValue]=useState({customerId:"",site:"Branded",billingType:"Fixed",tripIds:[],vehicleIds:[],metrics:[],managerIds:[],periodCharges:[],
-    periodFrom:today().slice(0,7)+"-01",periodTo:today(),invoiceDate:today(),dueDate:today(),stateCode:"27",placeOfSupply:"Maharashtra",sacNo:"996601",cgstRate:0,sgstRate:0,igstRate:0,description:"",roundToRupee:true,taxConfirmed:false});
+    periodFrom:today().slice(0,7)+"-01",periodTo:today(),invoiceDate:today(),dueDate:today(),stateCode:"27",placeOfSupply:"Maharashtra",sacNo:"996601",cgstRate:0,sgstRate:0,igstRate:0,description:"",roundToRupee:true,taxConfirmed:false,includeParking:false});
   const [preview,setPreview]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState("");
   const change=(k,v)=>{setValue(x=>({...x,[k]:v,...(k==="billingType"?{site:v==="Adhoc"?"Inbound":"Branded"}:{}),...(["customerId","site","billingType"].includes(k)?{tripIds:[],vehicleIds:[],metrics:[],managerIds:[]}: {})}));setPreview(null);};
   const metrics=(vehicleId,k,v)=>{setValue(x=>{const previous=x.metrics.find(m=>m.vehicleId===vehicleId) || {vehicleId,reason:""};
@@ -45,14 +47,14 @@ export default function BillingInvoiceForm() {
     {error && <p className="error">{error}</p>}{[customers,trips,agreements,vehicles].some(r=>r.error) && <p className="error">Unable to load billing options. Reload the page.</p>}
     <form onSubmit={review}><section className="card form-grid">
       <Field name="customerId" label="Billing customer" required options={(customers.data || []).map(c=>({value:c._id,label:c.companyName}))} value={value.customerId} onChange={change}/>
-      {value.billingType==="Adhoc" && <Field name="site" label="Site" required={value.billingType !== "Adhoc"} options={[{value:"",label:"Legacy trips (site unspecified)"},...sites]} value={value.site} onChange={change}/>}
+      {value.billingType==="Adhoc" && <Field name="site" label="Site" required={value.billingType !== "Adhoc"} options={[{value:"",label:"Legacy trips (site unspecified)"},...siteOptions(routeRecords.data||[],trips.data||[])]} value={value.site} onChange={change}/>}
       <Field name="billingType" label="Invoice type" required options={["Fixed","Variable","Adhoc"]} value={value.billingType} onChange={change}/>
       {[["periodFrom","Billing period from","date"],["periodTo","Billing period to","date"],["invoiceDate","Invoice date","date"],["dueDate","Due date","date"],
         ["stateCode","Supply state code","text"],["placeOfSupply","Place of supply","text"],["sacNo","SAC","text"],["cgstRate","CGST %","number"],["sgstRate","SGST %","number"],["igstRate","IGST %","number"],
         ["description","Description (blank = generated)","textarea"],["roundToRupee","Round to rupee","checkbox"],["taxConfirmed","I verified tax configuration","checkbox"]].map(([name,label,type])=>
         <Field key={name} name={name} label={label} type={type} value={value[name]} onChange={change}/>)}
     </section>
-    {value.billingType === "Adhoc" ? <section className="card"><h2>Select trips</h2>
+    {value.billingType === "Adhoc" ? <section className="card"><h2>Select trips</h2><Field name="includeParking" label="Include monthly parking/pass (non-taxable)" type="checkbox" value={value.includeParking} onChange={change}/>
       <button type="button" className="quiet" onClick={()=>change("tripIds",eligible.map(t=>t._id))}>Select all matching trips</button>
       {!eligible.length && <p>No approved adhoc trips match this customer, site and period.</p>}
       {eligible.map(t=><label className="check-row" key={t._id}><input type="checkbox" checked={value.tripIds.includes(t._id)} onChange={e=>change("tripIds",e.target.checked?[...value.tripIds,t._id]:value.tripIds.filter(id=>id!==t._id))}/>

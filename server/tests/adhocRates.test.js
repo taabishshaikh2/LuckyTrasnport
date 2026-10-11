@@ -43,3 +43,18 @@ test("site sample workbooks map the input columns correctly",async()=>{
  const {importTemplate}=await import("../services/excelExportService.js"),{parseWorkbook,validateRows}=await import("../services/excelImportService.js");
  for(const site of ["Inbound","Outbound","VVR"]){const parsed=parseWorkbook(importTemplate(site));assert.equal(parsed.rows.length,1);assert.ok(parsed.mapping.vehicleNo);assert.ok(parsed.mapping.closingDate);assert.ok(site==="Inbound"?parsed.mapping.chaName:parsed.mapping.huNumber);assert.equal(validateRows(parsed.rows,parsed.mapping,{durationFormat:"hoursMinutes"})[0].errors.length,0);}
 });
+
+test("new saved routes become site options and parking can be excluded",async()=>{
+ const {siteOptions}=await import("../../shared/routeSites.js"),{tripSchema}=await import("../validators/index.js");
+ const options=siteOptions([{routeName:"New depot",pickupLocation:"Depot",dropLocation:"Cargo",active:true}]);assert.equal(options[0].value,"New depot");assert.equal(options[0].origin,"Depot");assert.equal(siteOptions([{routeName:"Hidden",active:false}]).length,0);
+ const trip={_id:"1",customerId:"c",site:"Inbound",periodFrom:"2026-07-01",baseAmount:100,parkingSnapshot:999};
+ const pass={customerId:"c",site:"Inbound",month:"2026-07",amount:7500};assert.equal(adhocSummary(adhocRows([trip],[pass],false)).total,100);
+ assert.equal(adhocSummary(adhocRows([{...trip,site:"New depot"}],[],false)).parking,0);
+});
+test("explicit next-day closing date calculates the multi-day example",async()=>{
+ const {pickupDuty}=await import("../services/dutyTimeService.js"),{durationText}=await import("../../shared/sites.js");
+ const entry={date:"2026-07-18",openingTime:"12:52",closingTime:"15:30"};
+ const same=pickupDuty(entry);assert.equal(durationText(same.totalHours),"2:38");
+ const duty=pickupDuty({...entry,closingDate:"2026-07-19"});const calculation=calculateTrip({totalHours:duty.totalHours},adhocRate({adhocService:"City"},{tripRate:1987,overtimeRate:200}));
+ assert.equal(durationText(duty.totalHours),"26:38");assert.equal(durationText(calculation.overtimeHours),"18:38");assert.equal(calculation.overtimeAmount,3726.67);
+});

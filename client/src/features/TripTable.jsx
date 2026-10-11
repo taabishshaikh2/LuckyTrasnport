@@ -5,8 +5,8 @@ import TripRow from "./TripRow";
 import AdhocTripTable from "./AdhocTripTable";
 import { Link } from "react-router-dom";
 import { siteColumns, durationText } from "../../../shared/sites.js";
-export default function TripTable({trips=[],passes=[],user,onChanged}) {
-  if(trips.some(t=>t.adhocService))return <AdhocTripTable trips={trips} passes={passes} user={user} onChanged={onChanged}/>;
+export default function TripTable({trips=[],passes=[],includeParking=true,user,onChanged}) {
+  if(trips.some(t=>t.adhocService))return <AdhocTripTable trips={trips} passes={passes} includeParking={includeParking} user={user} onChanged={onChanged}/>;
   return <TripScroll><table className="trip-sheet"><thead><tr><th>Status</th>{siteColumns.map(([label])=><th key={label}>{label}</th>)}<th>Actions</th></tr></thead>
     <tbody>{trips.map((t,i)=>{const e=t.entries?.[0] || {},last=t.entries?.at(-1) || e;
       const row={...e,srNo:i+1,date:t.periodFrom.slice(0,10),vehicleNo:t.vehicleNumber,vehicleType:t.vehicleType,

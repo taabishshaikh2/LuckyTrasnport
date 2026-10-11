@@ -247,6 +247,7 @@ export const config = {
     fields: [
 
       f("routeName", "Route name"),
+      f("site","Trip site (optional; defaults to route name)"),
 
       f("pickupLocation", "Pickup"),
 

@@ -127,7 +127,7 @@ export const Customer = make("Customer", {
 export const Route = make("Route", {
   ...common,
   routeId: { type: String, unique: true },
-  routeName: String,
+  routeName: String, site:String,
   pickupLocation: String,
   dropLocation: String,
   category: String,

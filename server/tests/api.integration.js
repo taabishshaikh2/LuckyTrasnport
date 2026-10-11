@@ -730,7 +730,8 @@ test(
       const wb=XLSX.read(file.body,{type:"buffer"}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.equal(rows[0][11],2484);assert.equal(rows[1][9],"3:00");assert.equal(rows[1][11],600);assert.equal(rows[2][11],7500);assert.equal(rows[3][11],10584);assert.equal(rows[4][3],"CHA NAME");assert.equal(rows[4].length,12);assert.ok(rows.some(row=>row.includes("DHL Representatives Sign")&&row.includes("Vendor Sign")));
       for(const id of [created.body.data._id,next.body.data._id])assert.equal((await post("/trips/"+id+"/status",{status:"Approved"})).status,200);
       const invoiceInput={customerId:refs.customers._id,billingType:"Adhoc",site:"Inbound",tripIds:[created.body.data._id,next.body.data._id],periodFrom:"2026-06-01",periodTo:"2026-06-30",invoiceDate:"2026-07-01",dueDate:"2026-08-01",stateCode:"27",placeOfSupply:"Maharashtra",cgstRate:9,sgstRate:9,taxConfirmed:true,roundToRupee:false};
-      const bill=await post("/invoices/preview",invoiceInput);assert.equal(bill.status,200,JSON.stringify(bill.body));assert.equal(bill.body.data.baseAmount,10584);assert.equal(bill.body.data.lineItems.find(l=>l.category==="ACC daily & monthly pass").amount,7500);
+      const bill=await post("/invoices/preview",invoiceInput);assert.equal(bill.status,200,JSON.stringify(bill.body));assert.equal(bill.body.data.baseAmount,3084);assert.equal(bill.body.data.nonTaxableAmount,7500);assert.equal(bill.body.data.cgstAmount,277.56);
+      const excluded=await post("/invoices/preview",{...invoiceInput,includeParking:false});assert.equal(excluded.status,200);assert.equal(excluded.body.data.nonTaxableAmount,0);assert.equal(bill.body.data.lineItems.find(l=>l.category==="ACC daily & monthly pass").amount,7500);
       const issued=await post("/invoices",{...invoiceInput,expectedTotal:bill.body.data.totalAmount,reviewToken:bill.body.data.reviewToken});assert.equal(issued.status,201,JSON.stringify(issued.body));assert.equal((await get("/exports/invoices/"+issued.body.data._id+".pdf")).status,200);
       const draft=await post("/trips",{...two,status:"Draft",expectedTotal:1542});assert.equal(draft.status,201);assert.equal((await post("/trips/"+draft.body.data._id+"/status",{status:"Submitted"})).status,200);assert.equal((await post("/trips/"+draft.body.data._id+"/status",{status:"Approved"})).status,200);
       const followup=await post("/invoices/preview",{...invoiceInput,tripIds:[draft.body.data._id]});assert.equal(followup.status,200,JSON.stringify(followup.body));assert.equal(followup.body.data.baseAmount,1542);assert.ok(!followup.body.data.lineItems.some(l=>l.category==="ACC daily & monthly pass"));
@@ -796,4 +797,12 @@ test("submitted and approved trips can be revised without losing their status",a
    const revised=await call("patch","/trips/"+trip._id,{...input,status:"Submitted",expectedTotal:preview.body.data.calculation.totalAmount});assert.equal(revised.status,200,JSON.stringify(revised.body));assert.equal(revised.body.data.status,status);assert.equal(revised.body.data.entries[0].chaName,"Edited CHA");
   }finally{await Trip.deleteOne({_id:trip._id});}
  }
+});
+test("new route site supports priced adhoc trips",async()=>{
+ const {Route}=await import("../models/index.js"),route=await Route.create({routeName:"New terminal QA",pickupLocation:"New terminal",dropLocation:"Cargo",category:"Regular",active:true});
+ try{
+  const source=await Trip.findOne({adhocService:"City"}).lean();
+  const input={...source,customerId:String(source.customerId),vehicleId:String(source.vehicleId),driverId:"",routeId:"",site:route.routeName,adhocService:"Kilometre",distanceBand:"0-50",distanceKm:40,status:"Draft",periodFrom:new Date(source.periodFrom).toISOString().slice(0,10),periodTo:new Date(source.periodTo).toISOString().slice(0,10),entries:source.entries.map(e=>({...e,date:new Date(e.date).toISOString().slice(0,10)}))};
+  const result=await request(app).post("/api/trips/preview").set("Authorization","Bearer "+token).set("X-Forwarded-For","203.0.113.48").send(input);assert.equal(result.status,200,JSON.stringify(result.body));assert.equal(result.body.data.calculation.baseAmount,2200);
+ }finally{await Route.deleteOne({_id:route._id});}
 });

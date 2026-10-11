@@ -1,4 +1,5 @@
 import { adhocRate } from "./adhocRateService.js";
+import {routeSite} from "../../shared/routeSites.js";
 import { sites } from "../../shared/sites.js";
 import { distanceRate, vehicleRateType } from "./distanceRateService.js";
 import {
@@ -47,7 +48,8 @@ export async function previewTrip(input, session) {
   const vehicle = await Vehicle.findById(input.vehicleId, null, opts);
   const driver = await Driver.findById(input.driverId, null, opts);
   const customer = await Customer.findById(input.customerId, null, opts);
-  const route = input.adhocService ? {routeName:sites.find(s=>s.value===input.site)?.label,category:input.site,active:true} : await Route.findById(input.routeId, null, opts);
+  const savedRoutes=input.adhocService?await Route.find({archived:false,active:true},null,opts):[];
+  const route = input.adhocService ? {routeName:savedRoutes.find(r=>routeSite(r)===input.site)?.routeName||sites.find(s=>s.value===input.site)?.label,category:input.site,active:true} : await Route.findById(input.routeId, null, opts);
   if(input.adhocService){
    if(input.overrideAmount!=null || input.manualAmount!=null)throw new AppError("Adhoc entries use the saved service rate");
    if(vehicle?.branded)throw new AppError("Select an Adhoc vehicle");
