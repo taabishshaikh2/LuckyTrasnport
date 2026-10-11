@@ -92,7 +92,7 @@ r.patch(
       : undefined;
     const updated = await User.findByIdAndUpdate(
       req.params.id,
-      { $set: { ...v, ...(passwordHash ? { passwordHash } : {}) } },
+      { $set: { ...v, ...(passwordHash ? { passwordHash } : {}) },...(passwordHash?{$inc:{sessionVersion:1},$unset:{resetTokenHash:1,resetExpiresAt:1,recoveryRequestedAt:1}}:{}) },
       { new: true },
     );
     if (!updated) throw new AppError("User not found", 404);

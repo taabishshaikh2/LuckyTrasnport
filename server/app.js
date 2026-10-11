@@ -4,7 +4,7 @@ import "./config/env.js";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import {apiLimit,importLimit,safeInput} from "./middleware/security.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import mongoose from "mongoose";
@@ -43,15 +43,8 @@ app.use(
   }),
 );
 app.use(express.json({ limit: "1mb" }));
-app.use(
-  "/api",
-  rateLimit({
-    windowMs: 60 * 1000,
-    limit: 240,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-  }),
-);
+app.use("/api",apiLimit,safeInput);
+app.use("/api/auth",(req,res,next)=>{res.set("Cache-Control","no-store");next();});
 app.get("/api/health", (req, res) => {
   const connected = mongoose.connection.readyState === 1;
   res.status(connected ? 200 : 503).json({
@@ -147,7 +140,7 @@ app.use("/api/masters", masterRoutes);
 app.use("/api/trips", tripRoutes);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/payments", paymentsRouter);
-app.use("/api/imports", importRoutes);
+app.use("/api/imports",importLimit, importRoutes);
 app.use("/api/exports", exportRoutes);
 app.use("/api", (req, res, next) =>
   next(new AppError("API route not found", 404)),

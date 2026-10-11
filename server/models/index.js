@@ -17,13 +17,15 @@ export const User = make("User", {
   name: String,
   username: { type: String, unique: true, required: true },
   passwordHash: { type: String, select: false, required: true },
+  sessionVersion:{type:Number,default:0,select:false},
+  resetTokenHash:{type:String,select:false},resetExpiresAt:{type:Date,select:false},recoveryRequestedAt:{type:Date,select:false},
   role: { type: String, enum: ["ADMIN", "MANAGER", "DRIVER"], required: true },
   active: { type: Boolean, default: true },
   driverId: ref("Driver"),
 });
 User.schema.set("toJSON", {
   transform: (_doc, ret) => {
-    delete ret.passwordHash;
+    delete ret.passwordHash;delete ret.sessionVersion;delete ret.resetTokenHash;delete ret.resetExpiresAt;delete ret.recoveryRequestedAt;
     return ret;
   },
 });

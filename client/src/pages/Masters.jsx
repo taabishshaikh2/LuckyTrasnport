@@ -1,3 +1,4 @@
+import {RecoveryRequests} from "../features/PasswordRecovery";
 import TripScroll from "../features/TripScroll";
 import TripRow from "../features/TripRow";
 import BrandedImport from "../features/BrandedImport";
@@ -289,6 +290,7 @@ export default function Masters({ entity, user, vehicleKind }) {
 
       </div>
 
+      {entity==="users"&&user.role==="ADMIN"&&<RecoveryRequests/>}
       {entity==="brandedLogs" && <div className="filters"><input aria-label="Log month" type="month" value={logMonth} onChange={e=>setLogMonth(e.target.value)}/><select aria-label="Branded vehicle" value={logVehicle} onChange={e=>setLogVehicle(e.target.value)}><option value="">All branded vehicles</option>{vehicles.data?.filter(v=>v.branded).map(v=><option key={v._id} value={v._id}>{v.vehicleNumber}</option>)}</select><button onClick={async()=>{try{await download("/exports/branded-logs.xlsx?month="+logMonth+(logVehicle?"&vehicleId="+logVehicle:""),"branded-shift-log.xlsx");}catch(e){setError(message(e));}}}>Export branded log Excel</button><BrandedImport customers={customers.data||[]} onImported={count=>{records.reload();setSuccess(count+" branded shifts imported");}}/></div>}
       <State {...records}>
 

@@ -19,7 +19,7 @@ export function errorHandler(err, req, res, next) {
     ? 409
     : validation
       ? 400
-      : err.status || (err.code === "LIMIT_FILE_SIZE" ? 413 : 500);
+      : err instanceof AppError ? err.status : err.code === "LIMIT_FILE_SIZE" ? 413 : err.type === "entity.parse.failed" ? 400 : err.type === "entity.too.large" ? 413 : 500;
   if (status >= 500) console.error(err.name, err.message);
   res.status(status).json({
     success: false,
@@ -29,13 +29,13 @@ export function errorHandler(err, req, res, next) {
         ? "Please check the submitted fields"
         : status >= 500
           ? "Unable to complete the request"
-          : err.message,
+          : err instanceof AppError ? err.message : status===413 ? "Request is too large" : "Invalid request",
     errors:
-      err.issues?.map((x) => ({
+      (err.name==="ZodError" ? err.issues : undefined)?.map((x) => ({
         field: x.path.join("."),
         message: x.message,
       })) ||
-      (err.errors instanceof Array && err.errors) ||
+      (err instanceof AppError && err.errors instanceof Array && err.errors) ||
       [],
   });
 }

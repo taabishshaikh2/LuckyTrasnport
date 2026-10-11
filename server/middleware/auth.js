@@ -12,9 +12,11 @@ export const auth = wrap(async (req, res, next) => {
   } catch {
     throw new AppError("Session expired. Please sign in again", 401);
   }
-  const user = await User.findById(claims.sub);
+  if(typeof claims.sub!=="string"||! /^[a-f0-9]{24}$/i.test(claims.sub))throw new AppError("Invalid session. Please sign in again",401);
+  const user = await User.findById(claims.sub).select("+sessionVersion");
   if (!user?.active) throw new AppError("Account unavailable", 401);
-  req.user = user;
+  if(Number(claims.version||0)!==Number(user.sessionVersion||0))throw new AppError("Session expired. Please sign in again",401);
+  req.user = {_id:user._id,name:user.name,username:user.username,role:user.role,driverId:user.driverId,active:user.active};
   next();
 });
 export const roles =

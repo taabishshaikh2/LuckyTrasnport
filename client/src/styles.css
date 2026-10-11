@@ -790,3 +790,40 @@ main {
 .trip-sheet .clickable-trip-row { cursor: pointer; }
 .trip-sheet .clickable-trip-row:hover td, .trip-sheet .clickable-trip-row:focus-visible td { background: #e7eff8; }
 .trip-sheet .clickable-trip-row:focus-visible { outline: 2px solid #163454; outline-offset: -2px; }
+/* Form controls must be allowed to shrink inside grid cells (including iOS date/time inputs). */
+.field,.form-grid>* ,.card,.record,.filters>* {min-width:0;}
+input,select,textarea {max-width:100%;min-width:0;}
+input[type="date"],input[type="time"],input[type="month"] {display:block;width:100%;min-width:0;max-width:100%;}
+input::-webkit-date-and-time-value {min-width:0;text-align:left;}
+.recovery-form {width:100%;max-width:480px;margin:auto;}
+@media(max-width:767px){
+ main {padding:18px 12px calc(100px + env(safe-area-inset-bottom));width:100%;min-width:0;}
+ .form-grid,.card-grid,.dashboard-columns {grid-template-columns:minmax(0,1fr);}
+ .card {padding:16px;border-radius:12px;}
+ .field {gap:6px;margin-bottom:14px;}
+ input,select,textarea {font-size:16px;padding:10px 12px;min-height:44px;}
+ input[type="date"],input[type="time"],input[type="month"] {height:44px;appearance:none;-webkit-appearance:none;}
+ input[type="checkbox"] {width:22px;height:22px;min-height:22px;flex-shrink:0;padding:0;}
+ .field:has(input[type="checkbox"]) {flex-direction:row;align-items:center;justify-content:space-between;}
+ .filters {gap:10px;}
+ .filters input,.filters select {min-width:0;flex:1 1 100%;width:100%;}
+ .actions {gap:8px;}
+ .actions>button,.actions>.button {max-width:100%;white-space:normal;}
+ .page-head {gap:12px;flex-wrap:wrap;}
+ h1 {font-size:23px;overflow-wrap:anywhere;}
+ h2 {font-size:18px;}
+ p,dd,.error,.notice {overflow-wrap:anywhere;}
+ .modal {padding:16px;max-height:calc(100dvh - env(safe-area-inset-top));padding-bottom:calc(24px + env(safe-area-inset-bottom));}
+ .bottom-nav {padding-bottom:env(safe-area-inset-bottom);}
+ .bottom-nav a {min-width:0;flex:1;font-size:11px;}
+ .floating-add {bottom:calc(88px + env(safe-area-inset-bottom));right:14px;width:44px;height:44px;}
+ .sticky-actions {bottom:calc(73px + env(safe-area-inset-bottom));}
+ .login {padding:16px;min-width:0;}
+ .login-form {width:100%;padding:20px;min-width:0;}
+ .trip-sheet {font-size:12px;}
+ .trip-sheet th,.trip-sheet td {padding:8px;}
+ .trip-sheet .actions {margin:0;}
+ .sheet-scroll {max-width:100%;overscroll-behavior-x:contain;}
+ dl {min-width:0;}
+ dd {margin-left:0;}
+}

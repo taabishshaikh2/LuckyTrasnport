@@ -1,3 +1,4 @@
+import PasswordRecovery from "./features/PasswordRecovery";
 import WeeklyOffs from "./pages/WeeklyOffs";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -22,6 +23,7 @@ import Import from "./pages/Import";
 import { Reports, Settings } from "./pages/Reports";
 import "./styles.css";
 function Login({ onLogin }) {
+  const [recover,setRecover]=useState(new URLSearchParams(window.location.hash.slice(1)).has("reset"));
   const [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
     [busy, setBusy] = useState(false),
@@ -41,6 +43,7 @@ function Login({ onLogin }) {
       setBusy(false);
     }
   }
+  if(recover)return <PasswordRecovery onBack={()=>setRecover(false)}/>;
   return (
     <div className="login">
       <section className="login-brand">
@@ -86,6 +89,7 @@ function Login({ onLogin }) {
         <button className="wide" disabled={busy}>
           {busy ? "Signing in..." : "Sign in"}
         </button>
+        <button type="button" className="quiet wide" onClick={()=>setRecover(true)}>Forgot password?</button>
         <p className="muted">Lucky Transport Services  /  Mumbai</p>
       </form>
     </div>
@@ -109,6 +113,7 @@ function App() {
     return () => window.removeEventListener("session-expired", logout);
   }, []);
   if (loading) return <div className="state">Opening workspace...</div>;
+  if(new URLSearchParams(window.location.hash.slice(1)).has("reset"))return <PasswordRecovery onBack={logout}/>;
   if (!user) return <Login onLogin={setUser} />;
   const ops = user.role !== "DRIVER";
   return (
@@ -145,7 +150,7 @@ function App() {
             <Route path="payments" element={<Payments />} />
             <Route path="import" element={<Import />} />
             <Route path="reports" element={<Reports />} />
-            <Route path="settings" element={<Settings user={user} />} />
+            <Route path="settings" element={user.role==="ADMIN"?<Settings user={user}/>:<Navigate to="/" replace/>} />
           </>
         )}
         <Route path="*" element={<Navigate to="/" replace />} />

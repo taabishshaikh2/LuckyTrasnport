@@ -806,3 +806,26 @@ test("new route site supports priced adhoc trips",async()=>{
   const result=await request(app).post("/api/trips/preview").set("Authorization","Bearer "+token).set("X-Forwarded-For","203.0.113.48").send(input);assert.equal(result.status,200,JSON.stringify(result.body));assert.equal(result.body.data.calculation.baseAmount,2200);
  }finally{await Route.deleteOne({_id:route._id});}
 });
+test("security boundaries, one-time password recovery and session revocation",async()=>{
+ const account=await User.create({name:"Recovery QA",username:"recovery-qa",passwordHash:await bcrypt.hash("old-password-qa",12),role:"MANAGER",active:true});
+ const call=(method,url,data,authToken,ip="203.0.113.60")=>{let q=request(app)[method]("/api"+url).set("X-Forwarded-For",ip);if(authToken)q=q.set("Authorization","Bearer "+authToken);return q.send(data);};
+ try{
+  assert.equal((await call("get","/masters/users",null,manager)).status,403);
+  assert.equal((await call("patch","/settings",{},manager)).status,403);
+  const injected=await call("post","/auth/login",{username:{$ne:null},password:"x"});assert.equal(injected.status,400);assert.ok(!JSON.stringify(injected.body).includes("Mongo"));
+  const before=await call("post","/auth/login",{username:account.username,password:"old-password-qa"});assert.equal(before.status,200);
+  const known=await call("post","/auth/forgot-password",{username:account.username},null,"203.0.113.61"),unknown=await call("post","/auth/forgot-password",{username:"does-not-exist"},null,"203.0.113.62");assert.equal(known.body.data.message,unknown.body.data.message);assert.ok(!JSON.stringify(known.body).includes("token"));
+  assert.equal((await call("get","/auth/recovery-requests",null,manager)).status,403);
+  const pending=await call("get","/auth/recovery-requests",null,token);assert.ok(pending.body.data.some(u=>u.username===account.username));
+  assert.equal((await call("post","/auth/users/"+account._id+"/reset-link",{},manager)).status,403);
+  const link=await call("post","/auth/users/"+account._id+"/reset-link",{},token,"203.0.113.63");assert.equal(link.status,200);assert.equal(link.body.data.token.length,64);
+  const stored=await User.findById(account._id).select("+resetTokenHash");assert.notEqual(stored.resetTokenHash,link.body.data.token);
+  const reset=await call("post","/auth/reset-password",{token:link.body.data.token,password:"new-password-qa"},null,"203.0.113.64");assert.equal(reset.status,200);
+  assert.equal((await call("post","/auth/reset-password",{token:link.body.data.token,password:"third-password-qa"},null,"203.0.113.65")).status,400);
+  assert.equal((await call("get","/auth/me",null,before.body.data.token)).status,401);
+  const after=await call("post","/auth/login",{username:account.username,password:"new-password-qa"});assert.equal(after.status,200);assert.ok(!JSON.stringify((await call("get","/auth/me",null,after.body.data.token)).body).includes("sessionVersion"));
+  const expired=await call("post","/auth/users/"+account._id+"/reset-link",{},token,"203.0.113.66");await User.updateOne({_id:account._id},{$set:{resetExpiresAt:new Date(0)}});assert.equal((await call("post","/auth/reset-password",{token:expired.body.data.token,password:"last-password-qa"},null,"203.0.113.67")).status,400);
+  for(let i=0;i<5;i++)assert.equal((await call("post","/auth/forgot-password",{username:"missing"},null,"203.0.113.68")).status,200);
+  const limited=await call("post","/auth/forgot-password",{username:"missing"},null,"203.0.113.68");assert.equal(limited.status,429);assert.equal(limited.body.success,false);
+ }finally{await User.deleteOne({_id:account._id});}
+});

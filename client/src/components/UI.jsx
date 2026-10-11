@@ -56,7 +56,7 @@ export function Field({
   return (
     <div className="field">
       <label htmlFor={inputId}>{label || name}</label>
-      {options && options.some((o) => typeof o === "object") && (
+      {options && options.length>8 && options.some((o) => typeof o === "object") && (
         <input
           aria-label={"Search " + (label || name)}
           type="search"

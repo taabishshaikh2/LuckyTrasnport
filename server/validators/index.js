@@ -267,7 +267,7 @@ export const userSchema = z
   .object({
     name: required,
     username: str.min(3).max(60),
-    password: z.string().min(10).max(100).optional(),
+    password: z.string().min(10).max(100).refine(p=>Buffer.byteLength(p,"utf8")<=72,"Password must be at most 72 UTF-8 bytes").optional(),
     role: z.enum(["ADMIN", "MANAGER", "DRIVER"]),
     driverId: optId,
     active: z.boolean().default(true),
