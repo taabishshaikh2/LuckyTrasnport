@@ -39,7 +39,7 @@ const aliases = {
   vehicleNo: ["vehicle", "vehicleno", "vehiclenumber", "truckno"],
   chaName: ["chaname", "cha"],
   vehicleType: ["vehicletype", "type"],
-  huNumber: ["huno", "hunumber", "vehiclehunumber"],
+  huNumber: ["huno", "hunumber", "vehiclehunumber", "huidno", "huidnos", "huidnumber"],
   pickupLocation: ["origin", "pickup", "pickuplocation"],
   dropLocation: ["destination", "destin", "drop", "droplocation"],
   openingTime: ["opening", "openingtime", "starttime", "pickuparrivaltime"],

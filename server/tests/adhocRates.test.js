@@ -39,3 +39,7 @@ test("ACC pass is once per customer, site and month across vehicles; snapshots s
  const wb=XLSX.read(adhocWorkbook(trips,"Inbound",{}, {passes}),{type:"buffer"}),data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
  assert.ok(data.some(r=>r.includes("ACC Daily & Monthly Pass")&&r.includes(8200)));
 });
+test("site sample workbooks map the input columns correctly",async()=>{
+ const {importTemplate}=await import("../services/excelExportService.js"),{parseWorkbook,validateRows}=await import("../services/excelImportService.js");
+ for(const site of ["Inbound","Outbound","VVR"]){const parsed=parseWorkbook(importTemplate(site));assert.equal(parsed.rows.length,1);assert.ok(parsed.mapping.vehicleNo);assert.ok(parsed.mapping.closingDate);assert.ok(site==="Inbound"?parsed.mapping.chaName:parsed.mapping.huNumber);assert.equal(validateRows(parsed.rows,parsed.mapping,{durationFormat:"hoursMinutes"})[0].errors.length,0);}
+});

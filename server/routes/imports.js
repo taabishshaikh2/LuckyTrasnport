@@ -95,7 +95,7 @@ async function prepare(req, session) {
       throw new AppError("Unknown mapped column");
   const defaults = req.body.header || {};
   id.parse(defaults.customerId);
-  id.parse(defaults.routeId);
+  if(!defaults.adhocService)id.parse(defaults.routeId);
   const durationFormat = z
     .enum(["hoursMinutes", "decimal", "excelTime"])
     .parse(req.body.durationFormat || "hoursMinutes");

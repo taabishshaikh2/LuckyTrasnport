@@ -1,15 +1,17 @@
 import React, { useState } from "react";
 import { sites } from "../../../shared/sites.js";
-import { useNavigate } from "react-router-dom";
+import {useData} from "../hooks/useData";
+import { useNavigate,useSearchParams } from "react-router-dom";
 import { api, message, download } from "../api/client";
 import { Field, Calculation } from "../components/UI";
 import { AssignmentFields, initialTrip } from "../features/TripForm";
 export default function Import() {
+  const [query]=useSearchParams(),selected=sites.find(s=>s.value===query.get("site")),customers=useData("/masters/customers");
   const nav = useNavigate(),
     [file, setFile] = useState(null),
     [batch, setBatch] = useState(null),
     [mapping, setMapping] = useState({}),
-    [header, setHeader] = useState(initialTrip()),
+    [header, setHeader] = useState({...initialTrip(),...(selected?{site:selected.value,adhocService:["Inbound","Outbound"].includes(selected.value)?"City":"Kilometre",pickupLocation:selected.origin,dropLocation:selected.destination,distanceBand:"0-50"}:{})}),
     [preview, setPreview] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -17,7 +19,7 @@ export default function Import() {
     [durationFormat, setDurationFormat] = useState("hoursMinutes"),
     [result, setResult] = useState(null);
   function change(k, v) {
-    setHeader((x) => ({ ...x, [k]: v }));
+    setHeader((x) => ({ ...x, [k]: v,...(k==="site"?{adhocService:["Inbound","Outbound"].includes(v)?"City":"Kilometre",pickupLocation:sites.find(s=>s.value===v)?.origin||"",dropLocation:sites.find(s=>s.value===v)?.destination||""}:{}) }));
     setPreview(null);
   }
   async function upload(e) {
@@ -119,7 +121,7 @@ export default function Import() {
             {result.failedRows} invalid rows · {result.duplicateRows} duplicates
             skipped. No invoice created.
           </p>
-          <button onClick={() => nav("/trips")}>View trips</button>
+          <button onClick={() => nav(header.site?"/trips/site/"+encodeURIComponent(header.site)+"?month="+header.periodFrom.slice(0,7):"/trips")}>View trips</button>
           <button
             className="quiet"
             onClick={() => {
@@ -200,7 +202,7 @@ export default function Import() {
             }}
           />
           <div className="card form-grid">
-            <AssignmentFields value={header} onChange={change} importing />
+            {header.adhocService?<><Field name="customerId" label="Billing customer" required value={header.customerId} options={customers.data?.map(c=>({value:c._id,label:c.companyName}))} onChange={change}/>{header.adhocService==="Kilometre"&&<Field name="distanceBand" label="Kilometre service" value={header.distanceBand} options={["0-50","50-150","Above 150"]} onChange={change}/>}</>:<AssignmentFields value={header} onChange={change} importing />}
             <Field
               name="periodFrom"
               label="Import period from"

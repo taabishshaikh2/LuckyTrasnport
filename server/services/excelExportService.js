@@ -174,6 +174,12 @@ export async function allSitesWorkbook(trips,company) {
   return signedWorkbook(book);
 }
 export function importTemplate(site) {
+  if(site && site!=="Branded"){
+   const cols=adhocColumns(site).filter(([,key])=>!["srNo","totalHours","gtInHours","tripCharges","tollParking","totalServiceCharges","perTripHours"].includes(key));
+   const headers=[...cols.map(c=>c[0]),"Closing Date",...(!isCity(site)?["Total KM"]:[])];
+   const sample={date:"2026-07-01",vehicleNo:"REPLACE WITH SAVED VEHICLE",vehicleType:"8 FT",chaName:"Example CHA",huNumber:"518084626",pickupLocation:sites.find(s=>s.value===site)?.origin||"Origin",dropLocation:sites.find(s=>s.value===site)?.destination||"Destination",openingTime:"07:00",mrbArrivalTime:"14:30",closingTime:"16:00"};
+   return bookBuffer([headers,[...cols.map(([,key])=>sample[key]||""),"2026-07-01",...(!isCity(site)?[40]:[])]],site+" Import",false);
+  }
   if (site) return siteWorkbook([],site);
   return bookBuffer([columns.map((x) => x[0])], "Trips", false);
 }
