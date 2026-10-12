@@ -8,7 +8,7 @@ export function routeSite(route){
  return Object.keys(aliases).find(k=>aliases[k].test(text))||route.routeName;
 }
 export function siteOptions(routes=[],trips=[]){
- const result=new Map();for(const route of routes.filter(r=>r.active&&!r.archived)){const value=routeSite(route);result.set(value,{value,label:sites.find(s=>s.value===value)?.label||route.routeName,origin:route.pickupLocation,destination:route.dropLocation,routeId:route._id,group:["Inbound","Outbound"].includes(value)?"Intercity":"Special"});}
+ const result=new Map();for(const route of routes.filter(r=>r.active&&!r.archived)){const value=routeSite(route);result.set(value,{value,label:route.routeName,origin:route.pickupLocation,destination:route.dropLocation,routeId:route._id,group:["Inbound","Outbound"].includes(value)?"Intercity":"Special"});}
  for(const trip of trips)if(trip.site&&!result.has(trip.site))result.set(trip.site,{...(sites.find(s=>s.value===trip.site)||{value:trip.site,label:trip.site}),group:["Inbound","Outbound"].includes(trip.site)?"Intercity":"Special"});
  return [...result.values()];
 }
