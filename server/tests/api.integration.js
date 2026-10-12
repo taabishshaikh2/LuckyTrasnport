@@ -815,6 +815,10 @@ test("new route site supports priced adhoc trips",async()=>{
   const source=await Trip.findOne({adhocService:"City"}).lean();
   const input={...source,customerId:String(source.customerId),vehicleId:String(source.vehicleId),driverId:"",routeId:"",site:route.routeName,adhocService:"Kilometre",distanceBand:"0-50",distanceKm:40,status:"Draft",periodFrom:new Date(source.periodFrom).toISOString().slice(0,10),periodTo:new Date(source.periodTo).toISOString().slice(0,10),entries:source.entries.map(e=>({...e,date:new Date(e.date).toISOString().slice(0,10)}))};
   const result=await request(app).post("/api/trips/preview").set("Authorization","Bearer "+token).set("X-Forwarded-For","203.0.113.48").send(input);assert.equal(result.status,200,JSON.stringify(result.body));assert.equal(result.body.data.calculation.baseAmount,2200);
+  const special={...input,site:"Special",distanceBand:"Above 150",distanceKm:392,pickupLocation:"ACC",dropLocation:"PNQ SPL",entries:input.entries.map(e=>({...e,awbNumber:"9936468426",tollParking:1559}))};
+  const priced=await request(app).post("/api/trips/preview").set("Authorization","Bearer "+token).set("X-Forwarded-For","203.0.113.48").send(special);assert.equal(priced.status,200,JSON.stringify(priced.body));assert.equal(priced.body.data.calculation.baseAmount,7056);assert.equal(priced.body.data.calculation.baseDutyHours,16);assert.equal(priced.body.data.calculation.extraAmount,1559);
+  const saved=await request(app).post("/api/trips").set("Authorization","Bearer "+token).set("X-Forwarded-For","203.0.113.48").send({...special,expectedTotal:priced.body.data.calculation.totalAmount});assert.equal(saved.status,201,JSON.stringify(saved.body));assert.equal(saved.body.data.pickupLocation,"ACC");assert.equal(saved.body.data.entries[0].tollParking,1559);await Trip.deleteOne({_id:saved.body.data._id});
+
  }finally{await Route.deleteOne({_id:route._id});}
 });
 test("security boundaries, one-time password recovery and session revocation",async()=>{

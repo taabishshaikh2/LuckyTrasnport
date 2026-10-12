@@ -1,7 +1,7 @@
 import {sites} from "./sites.js";
 export function routeSite(route){
  if(route.site)return route.site;
- if(["Inbound","Outbound"].includes(route.category))return route.category;
+ if(["Inbound","Outbound","Special"].includes(route.category))return route.category;
  const text=(route.routeName+" "+route.pickupLocation).toLowerCase();
  const aliases={Goregaon:/goregaon|goregoan|ggt1/,VVR:/vidhy|vidya|vidhya|vvr/,Byculla:/byculla/,PNQ:/pnq|pune/};
  return Object.keys(aliases).find(k=>aliases[k].test(text))||route.routeName;

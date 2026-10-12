@@ -41,7 +41,7 @@ test("ACC pass is once per customer, site and month across vehicles; snapshots s
 });
 test("site sample workbooks map the input columns correctly",async()=>{
  const {importTemplate}=await import("../services/excelExportService.js"),{parseWorkbook,validateRows}=await import("../services/excelImportService.js");
- for(const site of ["Inbound","Outbound","VVR"]){const parsed=parseWorkbook(importTemplate(site));assert.equal(parsed.rows.length,1);assert.ok(parsed.mapping.vehicleNo);assert.ok(parsed.mapping.closingDate);assert.ok(site==="Inbound"?parsed.mapping.chaName:parsed.mapping.huNumber);assert.equal(validateRows(parsed.rows,parsed.mapping,{durationFormat:"hoursMinutes"})[0].errors.length,0);}
+ for(const site of ["Inbound","Outbound","VVR"]){const parsed=parseWorkbook(importTemplate(site));assert.equal(parsed.rows.length,1);assert.ok(parsed.mapping.vehicleNo);assert.ok(parsed.mapping.closingDate);assert.ok(site==="Inbound"?parsed.mapping.chaName:site==="Outbound"?parsed.mapping.huNumber:parsed.mapping.awbNumber);assert.equal(validateRows(parsed.rows,parsed.mapping,{durationFormat:"hoursMinutes"})[0].errors.length,0);}
 });
 
 test("new saved routes become site options and parking can be excluded",async()=>{
@@ -57,4 +57,15 @@ test("explicit next-day closing date calculates the multi-day example",async()=>
  const same=pickupDuty(entry);assert.equal(durationText(same.totalHours),"2:38");
  const duty=pickupDuty({...entry,closingDate:"2026-07-19"});const calculation=calculateTrip({totalHours:duty.totalHours},adhocRate({adhocService:"City"},{tripRate:1987,overtimeRate:200}));
  assert.equal(durationText(duty.totalHours),"26:38");assert.equal(durationText(calculation.overtimeHours),"18:38");assert.equal(calculation.overtimeAmount,3726.67);
+});
+
+test("Special layouts match KM bands, route names and saved per-KM rates",async()=>{
+ const {adhocColumns,adhocGroups}=await import("../../shared/adhoc.js"),{adhocWorkbook}=await import("../services/excelExportService.js"),XLSX=(await import("xlsx")).default;
+ const make=(id,band,origin,destination)=>{const input={adhocService:"Kilometre",site:"Special",distanceBand:band,distanceKm:band==="Above 150"?392:0,totalHours:8,pickupLocation:origin,dropLocation:destination};const rate=adhocRate(input,chart);return {_id:id,tripId:id,...input,...calculateTrip(input,rate),rateSnapshot:rate,customerId:{companyName:"BOSCH"},vehicleNumber:"MH01TEST",vehicleType:"8 FT",periodFrom:"2026-06-02",entries:[{awbNumber:"9936468426",openingTime:"02:10",closingTime:"09:40",tollParking:1559}]};};
+ const trips=[make("a","0-50","DG1","PNQ SPL"),make("b","50-150","DG1","PNQ SPL"),make("c","Above 150","ACC","PNQ SPL"),make("d","Above 150","Warehouse","Other depot")],rows=adhocRows(trips,[],false);
+ assert.equal(rows[0].tripCharges,2200);assert.equal(rows[1].tripCharges,3300);assert.equal(rows[2].tripCharges,7056);assert.equal(rows[2].ratePerKm,18);assert.equal(rows[2].perTripHours,16);assert.equal(rows[2].customerName,"BOSCH");assert.equal(rows[2].totalServiceCharges,8615);
+ const groups=adhocGroups(rows);assert.equal(groups.length,3);assert.equal(groups[0].rows.length,2);
+ assert.deepEqual(adhocColumns("Special",groups[0].rows).map(c=>c[0]),["SR.NO","DATE","VEHICLE - NO","VEHICLE TYPE","AWB NO","ORIGIN","DESTINATION","CUSTOMER","OPENING TIME","CLOSING TIME","PER TRIP HRS","TOTAL HRS","O.T IN HRS","SDC CHARGES","CASH & FAST TAG TOLL","TOTAL AMOUNT"]);
+ assert.equal(adhocColumns("Special",groups[1].rows)[13][0],"ACC TO PNQ SPL TOTAL KM");assert.equal(adhocColumns("Special",groups[1].rows)[14][0],"RATE PER KM");assert.equal(adhocColumns("Inbound",rows).length,12);assert.ok(!adhocColumns("Outbound",rows).some(c=>c[1]==="ratePerKm"));
+ const wb=XLSX.read(adhocWorkbook(trips,"Special",{}, {includeParking:false}),{type:"buffer"});assert.equal(wb.SheetNames.length,3);const sheet=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[1]],{header:1});const header=sheet.findIndex(r=>r.includes("RATE PER KM"));assert.equal(sheet[header+1][13],392);assert.equal(sheet[header+1][14],18);assert.equal(sheet[header+1][15],7056);assert.equal(sheet[header+1][16],1559);
 });

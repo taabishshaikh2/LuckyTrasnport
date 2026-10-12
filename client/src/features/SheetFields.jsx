@@ -71,7 +71,7 @@ export function SheetFields({entry={},onChange}) {
 }
 
 export function SheetSummary({entry={},trip,index=0}) {
-  if(trip?.adhocService){const row=adhocRows([{...trip,entries:[entry]}])[0];row.srNo=index+1;return <dl>{adhocColumns(trip.site).map(([label,key])=><React.Fragment key={key}><dt>{label}</dt><dd>{["tripCharges","tollParking","totalServiceCharges"].includes(key)?currency(row[key]):key==="date"?date(row[key]):adhocCell(row,key)||"—"}</dd></React.Fragment>)}</dl>; }
+  if(trip?.adhocService){const row=adhocRows([{...trip,entries:[entry]}])[0];row.srNo=index+1;return <dl>{adhocColumns(trip.site,[row]).map(([label,key])=><React.Fragment key={key}><dt>{label}</dt><dd>{["tripCharges","tollParking","totalServiceCharges"].includes(key)?currency(row[key]):key==="date"?date(row[key]):adhocCell(row,key)||"—"}</dd></React.Fragment>)}</dl>; }
   return <dl>{sheetFields.map(([name,label,type])=><React.Fragment key={name}>
 
   <dt>{label}</dt><dd>{type === "duration" ? durationText(entry[name]) : entry[name] ?? "—"}</dd>

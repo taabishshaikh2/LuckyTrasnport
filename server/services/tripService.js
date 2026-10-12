@@ -57,7 +57,7 @@ export async function previewTrip(input, session) {
    const city=["Inbound","Outbound"].includes(input.site);
    if(!route.routeName || city!==(input.adhocService==="City"))throw new AppError("Select the service matching this site");
    if(input.entries.length!==1 || !input.entries[0].openingTime || !input.entries[0].closingTime)throw new AppError("Enter one trip date, opening time and closing time");
-   input.entries[0].perTripHours=8;input.extraAmount=0;input.deductionAmount=0;
+   input.entries[0].perTripHours=8;input.extraAmount=city?0:Number(input.entries[0].tollParking||0);input.deductionAmount=0;
    input.parkingSnapshot=Number(vehicle.parkingMonthly||0)+Number(vehicle.tollEntryMonthly||0);
   }
   if (
@@ -160,7 +160,7 @@ export async function createTrip(input, user, session, source = "Manual") {
     sdcCharges:i===0 ? calc.subtotal : 0,tripCharges:i===0 ? calc.baseAmount : 0,
     gtAmount:i===0 ? calc.overtimeAmount : 0,gtInHours:i===0 ? calc.overtimeHours : 0,
     totalServiceCharges:i===0 ? calc.totalAmount : 0,
-    ...(i===0 ? {perTripHours:input.adhocService?8:calc.baseDutyHours} : {}),
+    ...(i===0 ? {perTripHours:calc.baseDutyHours} : {}),
   }));
   const tripId = await sequence("trip", "TR-", session);
   const override =

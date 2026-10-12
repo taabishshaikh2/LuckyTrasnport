@@ -1,4 +1,4 @@
-import {adhocRows,adhocSummary,cityColumns,kmColumns,adhocColumns,isCity,adhocCell} from "../../shared/adhoc.js";
+import {adhocRows,adhocSummary,adhocGroups,cityColumns,kmColumns,adhocColumns,isCity,adhocCell} from "../../shared/adhoc.js";
 import {logAdcAmounts,brandedAdc,billingShift} from "../../shared/brandedLogs.js";
 import XLSX from "xlsx-js-style";
 import { sites, siteColumns, durationText } from "../../shared/sites.js";
@@ -17,24 +17,24 @@ export function signatureFooter(sheet){
 function signedWorkbook(book){for(const sheet of Object.values(book.Sheets))signatureFooter(sheet);return XLSX.write(book,{type:"buffer",bookType:"xlsx"});}
 export function adhocWorkbook(trips,site,company,period={}){
  const wb=XLSX.utils.book_new(),all=adhocRows(trips,period.passes||[],period.includeParking!==false);
- for(const siteName of site?[site]:[...new Set(all.map(r=>r.site))]){
-  const rows=all.filter(r=>r.site===siteName),city=isCity(siteName),cols=adhocColumns(siteName),width=cols.length,summary=adhocSummary(rows);
+ for(const {site:siteName,rows,label} of adhocGroups(all.filter(r=>!site||r.site===site))){
+  const city=isCity(siteName),cols=adhocColumns(siteName,rows),width=cols.length,summary=adhocSummary(rows);
   const data=[],merges=[],dates=rows.map(r=>r.date).sort(),rateValues=[...new Set(rows.filter(r=>r.gtInHours>0).map(r=>r.overtimeRate))];
-  const service=[...new Set(rows.map(r=>r.distanceBand).filter(Boolean))].join(", ");
+  const service=[...new Set(rows.map(r=>`${r.pickupLocation} to ${r.dropLocation} (${r.distanceBand} KM)`))].join(", ");
   const top=(label,value,title,details,rate,amount)=>{const r=data.length,row=Array(width).fill("");row[0]=label;row[2]=value;row[6]=title;row[width-3]=details;row[width-2]=rate;row[width-1]=amount;data.push(row);merges.push({s:{r,c:0},e:{r,c:1}},{s:{r,c:2},e:{r,c:5}},{s:{r,c:6},e:{r,c:width-4}});};
   top("Vendor Name",company?.name||"LUCKY TRANSPORT SERVICES","Trip amount","Details","Rate",summary.tripAmount);
   top(city?"VEHICLE TYPE":"SERVICE",city?[...new Set(rows.map(r=>r.vehicleType))].join(", "):service,"Extra O.T Hrs",durationText(summary.otHours),rateValues.length===1?rateValues[0]:rateValues.length?"Mixed rates":0,summary.otAmount);
-  top("PERIOD",[period.from||dates[0],period.to||dates.at(-1)].filter(Boolean).join(" to "),city?"ACC Daily & Monthly Pass":"PARKING CHARGES","","",city?summary.accPass:summary.parking);
+  top("PERIOD",[period.from||dates[0],period.to||dates.at(-1)].filter(Boolean).join(" to "),city?"ACC Daily & Monthly Pass":"FASTAG, TOLL & PARKING","","",city?summary.accPass:summary.parking);
   if(summary.night)top("","","Night detention","Marked trips","",summary.night);
   top(siteName==="Inbound"?"CHA INCLUDES":"SITE",siteName==="Inbound"?[...new Set(rows.map(r=>r.chaName).filter(Boolean))].join(", "):siteName,"Total Amount","","",summary.total);
   const header=data.length;data.push(cols.map(c=>c[0]));
   rows.forEach((r,index)=>data.push(cols.map(([,k])=>k==="srNo"?index+1:k==="date"?r.date.split("-").reverse().join("-"):adhocCell(r,k))));
-  data.push(cols.map(([,k],index)=>index===0?"TOTAL":k==="gtInHours"?durationText(summary.otHours):k==="tripCharges"?summary.tripAmount:k==="tollParking"?summary.parking:k==="totalServiceCharges"?summary.tripAmount+summary.parking:""));
+  data.push(cols.map(([,k],index)=>index===0?"TOTAL":k==="distanceKm"?rows.reduce((total,row)=>total+row.distanceKm,0):k==="gtInHours"?durationText(summary.otHours):k==="tripCharges"?summary.tripAmount:k==="tollParking"?summary.parking:k==="totalServiceCharges"?summary.tripAmount+summary.parking:""));
   data.push([],["DHL Representatives Sign","","","","","","Vendor Sign"]);
-  const ws=XLSX.utils.aoa_to_sheet(data),border={style:"thin",color:{rgb:"000000"}};ws["!merges"]=merges;ws["!cols"]=cols.map(([,k])=>({wch:k==="vehicleNo"?19:k==="chaName"?22:k==="srNo"?7:15}));ws["!rows"]=data.map((_,r)=>({hpt:r===header?52:r<header?24:23}));
-  for(let r=0;r<data.length-2;r++)for(let col=0;col<width;col++){const key=XLSX.utils.encode_cell({r,c:col}),cell=ws[key]||={t:"s",v:""};cell.s={font:{name:"Arial",sz:10,bold:r<=header||r===data.length-3},alignment:{vertical:"center",wrapText:true,horizontal:r<header?"left":"center"},border:{top:border,bottom:border,left:border,right:border},...(r===header?{fill:{fgColor:{rgb:"E8EDF2"}}}:{})};if(cell.t==="n"&&(r<header||col>=width-3))cell.z="#,##0.00";}
+  const ws=XLSX.utils.aoa_to_sheet(data),border={style:"thin",color:{rgb:"000000"}};ws["!merges"]=merges;ws["!cols"]=cols.map(([,k])=>({wch:k==="vehicleNo"?19:k==="chaName"?22:k==="srNo"?7:15}));ws["!rows"]=data.map((_,r)=>({hpt:r===header?(cols.some(([,key])=>key==="ratePerKm")?80:52):r<header?24:23}));
+  for(let r=0;r<data.length-2;r++)for(let col=0;col<width;col++){const key=XLSX.utils.encode_cell({r,c:col}),cell=ws[key]||={t:"s",v:""};cell.s={font:{name:"Arial",sz:10,bold:r<=header||r===data.length-3},alignment:{vertical:"center",wrapText:true,horizontal:r<header?"left":"center"},border:{top:border,bottom:border,left:border,right:border},...(r===header?{fill:{fgColor:{rgb:"E8EDF2"}}}:{})};if(cell.t==="n"&&(r<header||col>=width-3||cols[col]?.[1]==="ratePerKm"))cell.z="#,##0.00";}
   ws["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:header,c:0},e:{r:header+rows.length,c:width-1}})};
-  XLSX.utils.book_append_sheet(wb,ws,(siteName+" Trips").slice(0,31));
+  XLSX.utils.book_append_sheet(wb,ws,(String(wb.SheetNames.length+1)+" "+label+" Trips").replace(/[\\/?*\[\]:]/g," ").slice(0,31));
  }
  return signedWorkbook(wb);
 }
@@ -175,9 +175,9 @@ export async function allSitesWorkbook(trips,company) {
 }
 export function importTemplate(site) {
   if(site && site!=="Branded"){
-   const cols=adhocColumns(site).filter(([,key])=>!["srNo","totalHours","gtInHours","tripCharges","tollParking","totalServiceCharges","perTripHours"].includes(key));
+   const cols=adhocColumns(site).filter(([,key])=>!["srNo","totalHours","gtInHours","tripCharges","totalServiceCharges","perTripHours"].includes(key));
    const headers=[...cols.map(c=>c[0]),"Closing Date",...(!isCity(site)?["Total KM"]:[])];
-   const sample={date:"2026-07-01",vehicleNo:"REPLACE WITH SAVED VEHICLE",vehicleType:"8 FT",chaName:"Example CHA",huNumber:"518084626",pickupLocation:sites.find(s=>s.value===site)?.origin||"Origin",dropLocation:sites.find(s=>s.value===site)?.destination||"Destination",openingTime:"07:00",mrbArrivalTime:"14:30",closingTime:"16:00"};
+   const sample={date:"2026-07-01",vehicleNo:"REPLACE WITH SAVED VEHICLE",vehicleType:"8 FT",chaName:"Example CHA",huNumber:"518084626",awbNumber:"518084626",customerName:"Example customer",pickupLocation:sites.find(s=>s.value===site)?.origin||"Origin",dropLocation:sites.find(s=>s.value===site)?.destination||"Destination",openingTime:"07:00",mrbArrivalTime:"14:30",closingTime:"16:00"};
    return bookBuffer([headers,[...cols.map(([,key])=>sample[key]||""),"2026-07-01",...(!isCity(site)?[40]:[])]],site+" Import",false);
   }
   if (site) return siteWorkbook([],site);
