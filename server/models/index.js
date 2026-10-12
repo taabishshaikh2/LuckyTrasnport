@@ -44,7 +44,7 @@ export const Vehicle = make("Vehicle", {
 export const BrandedLog = make("BrandedLog", {
  ...common,logId:{type:String,unique:true},name:String,customerId:ref("Customer"),vehicleId:ref("Vehicle"),
  date:Date,openingKm:Number,closingKm:Number,distanceKm:Number,openingTime:String,closingTime:String,
- totalHours:Number,held:{type:Boolean,default:false},holdLocation:String,airportFee:Number,
+ shiftHours:Number,totalHours:Number,held:{type:Boolean,default:false},holdLocation:String,airportFee:Number,
 },s=>s.index({vehicleId:1,date:1,openingTime:1},{unique:true,partialFilterExpression:{archived:false}}));
 export const WeeklyOff = make("WeeklyOff", {
  ...common,offId:{type:String,unique:true},name:String,customerId:ref("Customer"),vehicleId:ref("Vehicle"),date:Date,notes:String,

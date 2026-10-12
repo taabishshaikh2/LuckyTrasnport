@@ -47,7 +47,7 @@ export const methods = [
 const clock=str.regex(/^([01]\d|2[0-3]):[0-5]\d$/,"Enter a valid time");
 export const masterSchemas = {
  accPasses:z.object({customerId:id,site:z.enum(["Inbound","Outbound"]),month:z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),amount:num,notes:optional}),
- brandedLogs:z.object({customerId:id,vehicleId:id,date,openingKm:n,closingKm:n,openingTime:clock,closingTime:clock,held:z.boolean().default(false),holdLocation:optional,airportFee:n}).transform(v=>{
+ brandedLogs:z.object({shiftHours:z.preprocess(v=>v===""?undefined:v,z.coerce.number().refine(v=>[8,16,24].includes(v)).optional()),customerId:id,vehicleId:id,date,openingKm:n,closingKm:n,openingTime:clock,closingTime:clock,held:z.boolean().default(false),holdLocation:optional,airportFee:n}).transform(v=>{
   const minute=t=>Number(t.slice(0,2))*60+Number(t.slice(3));
   const minutes=(minute(v.closingTime)-minute(v.openingTime)+1440)%1440;
   return {...v,name:v.date+" "+v.openingTime,distanceKm:v.held?0:v.closingKm-v.openingKm,totalHours:minutes/60};
@@ -218,7 +218,7 @@ export const periodChargeSchema = z.object({
   allocationNote: required,
 });
 const vehicleMetrics = z.object({
-  vehicleId: id, shiftHours:num.positive().max(168).optional(), distanceKm: num.optional(), fuelRate: num.optional(),
+  vehicleId: id, shiftHours:z.coerce.number().refine(v=>[8,16,24].includes(v)).optional(), distanceKm: num.optional(), fuelRate: num.optional(),
   additionalServices: num.optional(), overtimeHours: num.optional(), airportEntries: num.optional(),
   fuelLitres: num.optional(), extraFuelRate: num.optional(), fixedFraction: num.max(1).optional(),
   parkingFraction: num.max(1).optional(), managementFraction: num.max(1).optional(),

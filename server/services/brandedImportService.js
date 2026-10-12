@@ -16,7 +16,7 @@ export function parseBrandedWorkbook(buffer,customerId,vehicles){
     const held=[get(2),get(3)].some(v=>typeof v==='string'&&v.trim()&&!/^\d+(?:\.\d+)?$/.test(v.trim()));
     let openingTime=clock(get(5)),closingTime=clock(get(6));
     const minutes=t=>Number(t.slice(0,2))*60+Number(t.slice(3));if((minutes(closingTime)-minutes(openingTime)+1440)%1440===1200)closingTime=String((Number(closingTime.slice(0,2))+12)%24).padStart(2,'0')+closingTime.slice(2);
-    const parsed=masterSchemas.brandedLogs.parse({customerId,vehicleId:String(vehicle._id),date:day(previousDate),openingKm:held?0:Number(get(2)),closingKm:held?0:Number(get(3)),openingTime,closingTime,held,holdLocation:held?[get(2),get(3)].filter(v=>typeof v==='string').join(' / '):'',airportFee:Number(get(9)||0)});
+    const parsed=masterSchemas.brandedLogs.parse({shiftHours:vehicle.shiftHours,customerId,vehicleId:String(vehicle._id),date:day(previousDate),openingKm:held?0:Number(get(2)),closingKm:held?0:Number(get(3)),openingTime,closingTime,held,holdLocation:held?[get(2),get(3)].filter(v=>typeof v==='string').join(' / '):'',airportFee:Number(get(9)||0)});
     rows.push({sheet:sheetName,row:n+1,vehicleNumber,...parsed});
    }catch(e){errors.push({sheet:sheetName,row:n+1,message:e.issues?.map(i=>i.message).join('; ')||e.message});}
   }

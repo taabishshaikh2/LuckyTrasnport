@@ -668,6 +668,8 @@ test(
       assert.equal((await get("/exports/branded-log-template.xlsx")).status,200);
     });
     await t.test("branded shift logs calculate variable charges without sites or agreements",async()=>{
+      const get=url=>request(app).get("/api"+url).set("X-Forwarded-For","203.0.113.49").set("Authorization","Bearer "+token);
+      const post=(url,data)=>request(app).post("/api"+url).set("X-Forwarded-For","203.0.113.49").set("Authorization","Bearer "+token).send(data);
       const common={customerId:refs.customers._id};
       const vehicle=(await post("/masters/vehicles",{vehicleNumber:"MH02BRAND16",vehicleType:"TATA 407",branded:true,shiftHours:16,adcRate:1914,amcRate:2.5,parkingMonthly:3000,tollEntryMonthly:1000})).body.data;
       assert.ok(vehicle._id);
@@ -685,7 +687,13 @@ test(
       for(const day of [7,14,21,28])assert.equal((await post("/masters/weeklyOffs",{...common,vehicleId:vehicle._id,date:"2026-06-"+String(day).padStart(2,"0")})).status,201);
       const input={...common,site:"Branded",billingType:"Variable",vehicleIds:[vehicle._id],periodFrom:"2026-06-01",periodTo:"2026-06-30",invoiceDate:"2026-07-01",dueDate:"2026-08-01",stateCode:"27",placeOfSupply:"Maharashtra",cgstRate:9,sgstRate:9,taxConfirmed:true,roundToRupee:false};
       const preview=await post("/invoices/preview",input);assert.equal(preview.status,200,JSON.stringify(preview.body));
-      const data=preview.body.data,metrics=data.narration.vehicles[0].metrics;
+      assert.equal(first.body.data.shiftHours,16);
+      assert.equal((await request(app).patch("/api/masters/vehicles/"+vehicle._id).set("Authorization","Bearer "+token).send({...vehicle,shiftHours:8})).status,200);
+      const retained=await post("/invoices/preview",input);assert.equal(retained.status,200,JSON.stringify(retained.body));assert.equal(retained.body.data.narration.vehicles[0].agreement.shiftHours,16);
+      const overridden=await post("/invoices/preview",{...input,metrics:[{vehicleId:vehicle._id,shiftHours:8}]});assert.equal(overridden.status,200);assert.equal(overridden.body.data.narration.vehicles[0].metrics.includedHours,208);
+      const editedLog=await request(app).patch("/api/masters/brandedLogs/"+first.body.data._id).set("Authorization","Bearer "+token).send(shift);assert.equal(editedLog.status,200);assert.equal(editedLog.body.data.shiftHours,16);
+      const refreshed=await post("/invoices/preview",input);assert.equal(refreshed.status,200);
+      const data=refreshed.body.data,metrics=data.narration.vehicles[0].metrics;
       assert.equal(metrics.actualHours,464);assert.equal(metrics.includedHours,416);assert.equal(metrics.additionalServices,8);
       assert.equal(data.lineItems.find(l=>l.description.startsWith("Additional services")).amount,15312);
       assert.equal(data.lineItems.find(l=>l.description.startsWith("AMC")).amount,2475);assert.equal(data.nonTaxableAmount,250);
@@ -702,7 +710,10 @@ test(
       const rate=await post("/masters/fleetRates",{...common,name:"Fixed QA",vehicleType:"FIX QA",shiftHours:8,fixedRate:20,effectiveFrom:"2026-01-01"});assert.equal(rate.status,201);
       const manager=await post("/masters/fleetManagers",{...common,name:"QA manager",monthlySalary:26000});assert.equal(manager.status,201,JSON.stringify(manager.body));
       const input={...common,billingType:"Fixed",vehicleIds:[vehicle._id],managerIds:[manager.body.data._id],periodFrom:"2026-06-01",periodTo:"2026-06-08",invoiceDate:"2026-07-01",dueDate:"2026-08-01",stateCode:"27",placeOfSupply:"Maharashtra",cgstRate:9,sgstRate:9,taxConfirmed:true,roundToRupee:false};
+      const savedLog=await post("/masters/brandedLogs",{customerId:refs.customers._id,vehicleId:vehicle._id,date:"2026-06-01",openingTime:"07:00",closingTime:"15:00",openingKm:0,closingKm:0});assert.equal(savedLog.status,201);
+      assert.equal((await request(app).patch("/api/masters/vehicles/"+vehicle._id).set("Authorization","Bearer "+token).send({...vehicle,shiftHours:16})).status,200);
       const preview=await post("/invoices/preview",input);assert.equal(preview.status,200,JSON.stringify(preview.body));
+      assert.equal(preview.body.data.narration.vehicles[0].agreement.shiftHours,8);
       assert.equal(preview.body.data.baseAmount,86000);assert.equal(preview.body.data.totalAmount,101480);
       assert.equal(preview.body.data.narration.vehicles[0].agreement.fixedKm,3000);
       assert.deepEqual(preview.body.data.lineItems.map(l=>l.quantity),[3000,1]);

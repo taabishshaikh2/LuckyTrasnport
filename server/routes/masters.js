@@ -151,6 +151,9 @@ export async function references(entity, v, session, readOnly=false) {
     const day=new Date(v.date).toISOString().slice(0,10);
     if (await BillingClaim.exists({key:{$regex:":"+v.vehicleId+":Variable:"+day+"$"}}).session(session)) throw new AppError("This day is already billed. Cancel the invoice before changing its logs or weekly off",409);
     if (entity==="brandedLogs") {
+      const previous=v._id?await masters.brandedLogs.findById(v._id).session(session).lean():null;
+      v.shiftHours=v.shiftHours??previous?.shiftHours??(!previous?vehicle.shiftHours:undefined);
+      if(![8,16,24].includes(v.shiftHours))throw new AppError("Choose the billing shift for this log (8, 16 or 24 hours)");
       const start=+new Date(day)+Number(v.openingTime.slice(0,2))*3600000+Number(v.openingTime.slice(3))*60000,end=start+8*3600000;
       const neighbours=await masters.brandedLogs.find({vehicleId:v.vehicleId,archived:false,date:{$gte:new Date(+new Date(day)-86400000),$lte:new Date(+new Date(day)+86400000)},...(v._id?{_id:{$ne:v._id}}:{})}).session(session).lean();
       if(neighbours.some(l=>{const a=+l.date+Number(l.openingTime.slice(0,2))*3600000+Number(l.openingTime.slice(3))*60000;return a<end && a+l.totalHours*3600000>start;}))throw new AppError("This shift overlaps an existing vehicle shift",409);
@@ -242,7 +245,9 @@ r.patch(
     id.parse(req.params.id);
     const v = masterSchemas[req.entity].parse(req.body);
     const record = await transaction(async (session) => {
-      await references(req.entity, { ...v, _id: req.params.id }, session);
+      const checked={...v,_id:req.params.id};
+      await references(req.entity, checked, session);
+      if(req.entity==="brandedLogs")v.shiftHours=checked.shiftHours;
       const old = await req.Model.findById(req.params.id).session(session);
       if (!old || old.archived) throw new AppError("Record unavailable", 404);
       if (

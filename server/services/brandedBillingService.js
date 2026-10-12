@@ -1,4 +1,4 @@
-import {brandedAdc} from "../../shared/brandedLogs.js";
+import {brandedAdc,billingShift} from "../../shared/brandedLogs.js";
 import {Vehicle,BrandedLog,WeeklyOff,FuelCharge} from "../models/index.js";
 import {AppError} from "../utils/errors.js";
 import {money} from "./tripCalculationService.js";
@@ -17,11 +17,12 @@ export async function prepareBrandedVariable(input,session) {
   if(!logs.length)throw new AppError("Add branded shift logs for "+vehicle.vehicleNumber+" in this period");
   const offs=await WeeklyOff.find({vehicleId,customerId:input.customerId,archived:false,date:{$gte:from,$lte:to}}).session(session||null).lean();
   const sum=(key)=>logs.reduce((s,l)=>s+Number(l[key]||0),0);
-  const metrics={...brandedDuty(sum("totalHours"),vehicle.shiftHours,from,to,offs.length?offs.length:undefined),distanceKm:sum("distanceKm"),airportFee:sum("airportFee"),logs};
+  let shiftHours;try{shiftHours=billingShift(logs,input.metrics?.find(m=>m.vehicleId===vehicleId)?.shiftHours);}catch(e){throw new AppError(e.message);}
+  const metrics={...brandedDuty(sum("totalHours"),shiftHours,from,to,offs.length?offs.length:undefined),distanceKm:sum("distanceKm"),airportFee:sum("airportFee"),logs};
   const adc=brandedAdc(logs,metrics.includedHours,offs);
   Object.assign(metrics,{monthlyExtraMinutes:metrics.extraMinutes,offDutyMinutes:adc.offDutyMinutes,regularExtraMinutes:adc.regularExtraMinutes,extraMinutes:adc.extraMinutes,additionalServices:adc.additionalServices,extraDays:adc.extraMinutes/1440});
   const sources=[{model:"Vehicle",record:vehicle},...logs.map(record=>({model:"BrandedLog",record})),...offs.map(record=>({model:"WeeklyOff",record}))];
-  const agreement={name:"Saved branded vehicle rates",vehicleType:vehicle.customVehicleType||vehicle.vehicleType,shiftHours:vehicle.shiftHours,serviceRate:vehicle.adcRate||0,amcRate:vehicle.amcRate||0};
+  const agreement={name:"Saved branded vehicle rates",vehicleType:vehicle.customVehicleType||vehicle.vehicleType,shiftHours,serviceRate:vehicle.adcRate||0,amcRate:vehicle.amcRate||0};
   const add=(description,quantity,rate,taxable=true)=>{if(quantity && rate)lines.push({vehicleId,vehicleNumber:vehicle.vehicleNumber,description,quantity,rate,amount:money(quantity*rate),taxable});};
   if(metrics.distanceKm>0){
    const fuels=await FuelCharge.find({vehicleId,customerId:input.customerId,archived:false,periodFrom:{$lte:from},periodTo:{$gte:to}}).session(session||null).lean();

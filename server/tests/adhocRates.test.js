@@ -24,7 +24,7 @@ test("parking is allocated once per vehicle-month across sites, and summary reco
 test("exports append signature labels while import templates stay clean",async()=>{
  const {tripWorkbook,importTemplate,brandedWorkbook}=await import("../services/excelExportService.js"),XLSX=(await import("xlsx")).default;
  const legacy=await tripWorkbook([{entries:[],periodFrom:"2026-06-01",vehicleNumber:"MH01"}]);
- const branded=brandedWorkbook([{_id:"one",vehicleId:"v",customerId:"c",date:"2026-06-01",openingTime:"07:00",closingTime:"15:00",totalHours:8,distanceKm:10}],[{_id:"v",vehicleNumber:"MH01",shiftHours:8}]);
+ const branded=brandedWorkbook([{_id:"one",vehicleId:"v",customerId:"c",date:"2026-06-01",openingTime:"07:00",closingTime:"15:00",totalHours:8,shiftHours:8,distanceKm:10}],[{_id:"v",vehicleNumber:"MH01",shiftHours:8}]);
  for(const buffer of [legacy,branded]){const wb=XLSX.read(buffer,{type:"buffer"}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.ok(rows.some(r=>r.includes("DHL Representatives Sign")&&r.includes("Vendor Sign")));}
  const template=XLSX.read(importTemplate(),{type:"buffer"});assert.ok(!JSON.stringify(template.Sheets).includes("DHL Representatives Sign"));
 });

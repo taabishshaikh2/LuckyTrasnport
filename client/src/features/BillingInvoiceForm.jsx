@@ -59,15 +59,16 @@ export default function BillingInvoiceForm() {
       {!eligible.length && <p>No approved adhoc trips match this customer, site and period.</p>}
       {eligible.map(t=><label className="check-row" key={t._id}><input type="checkbox" checked={value.tripIds.includes(t._id)} onChange={e=>change("tripIds",e.target.checked?[...value.tripIds,t._id]:value.tripIds.filter(id=>id!==t._id))}/>
         {t.tripId}  /  {t.vehicleNumber}  /  {currency(t.totalAmount)}</label>)}
-    </section> : <section className="card"><h2>Select branded vehicles</h2><p>Select branded vehicles. Each vehicle uses its saved shift from the vehicle record. Fixed charges use the saved monthly KM allowance and matching monthly rate. Fixed invoices use the full agreed KM and manager salary without day-based proration.</p>
+    </section> : <section className="card"><h2>Select branded vehicles</h2><p>Select branded vehicles. Billing uses the shift saved with the period’s logs. With no logs, fixed billing uses the vehicle’s assigned shift. You can explicitly override the shift for this invoice. Fixed charges use the saved monthly KM allowance and matching monthly rate. Fixed invoices use the full agreed KM and manager salary without day-based proration.</p>
       {!fleet.length && <p>No branded vehicles. Add them in Vehicles and assign each a shift.</p>}
       {fleet.map(v=>{const m=value.metrics.find(m=>m.vehicleId===v._id) || {};return <div className="card" key={v._id}>
         <label className="check-row"><input type="checkbox" checked={value.vehicleIds.includes(v._id)} onChange={e=>{
           const selected=e.target.checked?[...value.vehicleIds,v._id]:value.vehicleIds.filter(id=>id!==v._id);
           setValue(x=>({...x,vehicleIds:selected,metrics:x.metrics.filter(m=>selected.includes(m.vehicleId))}));setPreview(null);
         }}/>{v.vehicleNumber}  /  {v.vehicleType}</label>
+        {value.vehicleIds.includes(v._id) && <Field name="shiftHours" label="Billing shift override (optional, this invoice only)" options={[8,16,24].map(hours=>({value:String(hours),label:hours+" hours"}))} value={m.shiftHours??""} onChange={(k,val)=>metrics(v._id,k,val)}/>}
         {value.billingType === "Variable" && value.vehicleIds.includes(v._id) && <p>Branded shift logs, saved ADC/AMC rates, monthly parking and toll/entry, and fuel mileage/rate will be read automatically. Airport reimbursement is outside GST.</p>}
-        {value.billingType === "Fixed" && value.vehicleIds.includes(v._id) && <p>Saved shift: {v.shiftHours || "Not assigned - edit the vehicle"} hours. Monthly KM: {shifts.data?.entries.find(s=>s.hours===v.shiftHours)?.monthlyKm ?? "Not configured"}.</p>}
+        {value.billingType === "Fixed" && value.vehicleIds.includes(v._id) && <p>Current vehicle shift: {v.shiftHours || "Not assigned - edit the vehicle"} hours. Monthly KM: {shifts.data?.entries.find(s=>s.hours===v.shiftHours)?.monthlyKm ?? "Not configured"}.</p>}
       </div>;})}
     </section>}
     {value.billingType === "Fixed" && <section className="card"><h2>Select fleet managers</h2>{(managers.data || []).filter(m=>m.active && m.customerId===value.customerId && (value.site==="Branded" || m.site===value.site)).map(m=><label className="check-row" key={m._id}><input type="checkbox" checked={value.managerIds.includes(m._id)} onChange={e=>change("managerIds",e.target.checked?[...value.managerIds,m._id]:value.managerIds.filter(id=>id!==m._id))}/>{m.name} - {currency(m.monthlySalary)} / month</label>)}</section>}
