@@ -1,3 +1,5 @@
+import {routeSite} from "../../../shared/routeSites.js";
+import LocationCards from "../features/LocationCards";
 import {RecoveryRequests} from "../features/PasswordRecovery";
 import TripScroll from "../features/TripScroll";
 import TripRow from "../features/TripRow";
@@ -83,7 +85,7 @@ export default function Masters({ entity, user, vehicleKind }) {
 
     try {
 
-      const payload = { ...edit,...(entity==="vehicles"?{tollEntryMonthly:0}:{}) };
+      const payload = { ...edit,...(entity==="routes"&&edit.category==="Regular"?{category:"Special",site:routeSite(edit)}:{}),...(entity==="vehicles"?{tollEntryMonthly:0}:{}) };
 
       for (const f of cfg.fields)
 
@@ -293,13 +295,14 @@ export default function Masters({ entity, user, vehicleKind }) {
       {entity==="users"&&user.role==="ADMIN"&&<RecoveryRequests/>}
       {entity==="brandedLogs" && <div className="filters"><input aria-label="Log month" type="month" value={logMonth} onChange={e=>setLogMonth(e.target.value)}/><select aria-label="Branded vehicle" value={logVehicle} onChange={e=>setLogVehicle(e.target.value)}><option value="">All branded vehicles</option>{vehicles.data?.filter(v=>v.branded).map(v=><option key={v._id} value={v._id}>{v.vehicleNumber}</option>)}</select><button onClick={async()=>{try{await download("/exports/branded-logs.xlsx?month="+logMonth+(logVehicle?"&vehicleId="+logVehicle:""),"branded-shift-log.xlsx");}catch(e){setError(message(e));}}}>Export branded log Excel</button><BrandedImport customers={customers.data||[]} onImported={count=>{records.reload();setSuccess(count+" branded shifts imported");}}/></div>}
       <State {...records}>
+        {entity==="routes"&&<LocationCards records={records.data||[]} search={search} filter={filter} onOpen={record=>{setDetail(record);setError("");}}/>}
 
         {entity === "cityRates" && <div className="sheet-scroll"><table className="trip-sheet"><thead><tr>{["Vehicle type","Vehicle make / model","Trip / 8 Hr","New rate","Additional hour cost","Night detention charge","Status"].map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{records.data?.filter(x=>JSON.stringify(x).toLowerCase().includes(search.toLowerCase())&&(!filter||String(x.active)===filter)).map(x=><tr key={x._id}><td><button className="quiet" onClick={()=>setDetail(x)}>{x.vehicleType}</button></td><td>{x.makeModel}</td><td>1</td>{["tripRate","overtimeRate","nightDetention"].map(k=><td key={k}>{Number(x[k]||0).toFixed(2)}</td>)}<td>{x.active?"Active":"Inactive"}</td></tr>)}</tbody></table></div>}
         {entity === "tripRates" && <div className="sheet-scroll"><table className="trip-sheet"><thead><tr><th>Vehicle type</th><th>Vehicle make / model</th><th>0-50 KM</th><th>Above 50-150 KM</th><th>Above 150 KM / KM</th><th>Detention after 8 hrs</th><th>PNQ detention after 16 hrs</th><th>Status</th></tr></thead><tbody>{records.data?.filter(x=>JSON.stringify({...x,customerName:customers.data?.find(c=>c._id===String(x.customerId))?.companyName}).toLowerCase().includes(search.toLowerCase()) && (!filter || String(x.active)===filter)).map(x=><tr key={x._id}><td><button className="quiet" onClick={()=>setDetail(x)}>{x.vehicleType}</button></td><td>{x.makeModel}</td>{["upTo50","upTo150","above150","overtimeRate","pnqOvertimeRate"].map(k=><td key={k}>{Number(x[k]||0).toFixed(2)}</td>)}<td>{x.active ? "Active" : "Inactive"}</td></tr>)}</tbody></table></div>}
 
         {entity === "brandedLogs" && <TripScroll><table className="trip-sheet"><thead><tr>{["Status","Date","Vehicle no.","Opening KM","Closing KM","Total KM","Opening time","Closing time","Total hours","Additional service charges","Domestic airport entry","Actions"].map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{records.data?.filter(x=>String(x.date).slice(0,7)===logMonth && (!logVehicle || x.vehicleId===logVehicle) && JSON.stringify(x).toLowerCase().includes(search.toLowerCase())).map(x=><TripRow key={x._id} id={x._id} label={x.logId || String(x.date).slice(0,10)} onOpen={()=>setDetail(x)}><td><Badge>Active · Saved</Badge></td><td><button className="quiet" onClick={()=>setDetail(x)}>{String(x.date).slice(0,10)}</button></td><td>{vehicles.data?.find(v=>v._id===x.vehicleId)?.vehicleNumber}</td><td>{x.held?"Loaded / held: "+x.holdLocation:x.openingKm}</td><td>{x.held?x.holdLocation:x.closingKm}</td><td>{x.distanceKm}</td><td>{x.openingTime}</td><td>{x.closingTime}</td><td>{x.totalHours}</td><td>{adcAmounts.has(x._id)?Number(adcAmounts.get(x._id)).toFixed(2):"Choose billing shift"}</td><td>{Number(x.airportFee||0).toFixed(2)}</td><td>{canEdit&&<button className="quiet" onClick={()=>setEdit({...x})}>Edit trip</button>}</td></TripRow>)}</tbody></table></TripScroll>}
         {entity === "accPasses" && <><p>Save one total per billing customer, site and calendar month. Charged once when that month has selected trips.</p><div className="sheet-scroll"><table className="trip-sheet"><thead><tr><th>Billing customer</th><th>Site</th><th>Month</th><th>ACC daily & monthly pass</th><th></th></tr></thead><tbody>{records.data?.filter(x=>JSON.stringify(x).toLowerCase().includes(search.toLowerCase())).map(x=><tr key={x._id}><td>{customers.data?.find(c=>c._id===x.customerId)?.companyName}</td><td>{x.site}</td><td>{x.month}</td><td>₹{Number(x.amount||0).toFixed(2)}</td><td><button className="quiet" onClick={()=>setDetail(x)}>View / edit</button></td></tr>)}</tbody></table></div></>}
-        <div className="card-grid" style={["tripRates","cityRates","brandedLogs","accPasses"].includes(entity) ? {display:"none"} : undefined}>
+        <div className="card-grid" style={["tripRates","cityRates","brandedLogs","accPasses","routes"].includes(entity) ? {display:"none"} : undefined}>
 
           {records.data
 
@@ -442,7 +445,7 @@ export default function Masters({ entity, user, vehicleKind }) {
 
                   onClick={() => {
 
-                    setEdit({ ...detail,...(entity==="vehicles"?{parkingMonthly:Number(detail.parkingMonthly||0)+Number(detail.tollEntryMonthly||0),tollEntryMonthly:0}:{}) });
+                    setEdit({ ...detail,...(entity==="routes"&&detail.category==="Regular"?{category:"Special",site:routeSite(detail)}:{}),...(entity==="vehicles"?{parkingMonthly:Number(detail.parkingMonthly||0)+Number(detail.tollEntryMonthly||0),tollEntryMonthly:0}:{}) });
 
                     setDetail(null);
 

@@ -18,7 +18,7 @@ function signedWorkbook(book){for(const sheet of Object.values(book.Sheets))sign
 export function adhocWorkbook(trips,site,company,period={}){
  const wb=XLSX.utils.book_new(),all=adhocRows(trips,period.passes||[],period.includeParking!==false);
  for(const {site:siteName,rows,label} of adhocGroups(all.filter(r=>!site||r.site===site))){
-  const city=isCity(siteName),cols=adhocColumns(siteName,rows),width=cols.length,summary=adhocSummary(rows);
+  const city=isCity(siteName),cols=adhocColumns(siteName,rows,period.includeTripCustomer!==false),width=cols.length,summary=adhocSummary(rows);
   const data=[],merges=[],dates=rows.map(r=>r.date).sort(),rateValues=[...new Set(rows.filter(r=>r.gtInHours>0).map(r=>r.overtimeRate))];
   const service=[...new Set(rows.map(r=>`${r.pickupLocation} to ${r.dropLocation} (${r.distanceBand} KM)`))].join(", ");
   const top=(label,value,title,details,rate,amount)=>{const r=data.length,row=Array(width).fill("");row[0]=label;row[2]=value;row[6]=title;row[width-3]=details;row[width-2]=rate;row[width-1]=amount;data.push(row);merges.push({s:{r,c:0},e:{r,c:1}},{s:{r,c:2},e:{r,c:5}},{s:{r,c:6},e:{r,c:width-4}});};
@@ -42,7 +42,7 @@ export function siteTripRows(trips) {
   return trips.map((t,index)=>{
     const e=t.entries?.[0] || {}, last=t.entries?.at(-1) || e;
     return {...e,srNo:index+1,date:new Date(t.periodFrom).toISOString().slice(0,10),
-      vehicleNo:t.vehicleNumber,vehicleType:t.vehicleType,customerName:e.customerName || e.chaName || t.customerId?.companyName || "",
+      vehicleNo:t.vehicleNumber,vehicleType:t.vehicleType,customerName:(t.adhocService==="Kilometre"||t.site==="Special"?t.customerId?.companyName:e.customerName || e.chaName || t.customerId?.companyName) || "",
       distanceKm:t.distanceKm ?? e.distanceKm,ratePerKm:t.rateSnapshot?.perKmRate ?? "",
       pickupLocation:e.pickupLocation || t.pickupLocation,dropLocation:e.dropLocation || t.dropLocation,
       closingTime:last.closingTime,closingDate:last.closingDate,
@@ -175,7 +175,7 @@ export async function allSitesWorkbook(trips,company) {
 }
 export function importTemplate(site) {
   if(site && site!=="Branded"){
-   const cols=adhocColumns(site).filter(([,key])=>!["srNo","totalHours","gtInHours","tripCharges","totalServiceCharges","perTripHours"].includes(key));
+   const cols=adhocColumns(site,[],true).filter(([,key])=>!["srNo","totalHours","gtInHours","tripCharges","totalServiceCharges","perTripHours"].includes(key));
    const headers=[...cols.map(c=>c[0]),"Closing Date",...(!isCity(site)?["Total KM"]:[])];
    const sample={date:"2026-07-01",vehicleNo:"REPLACE WITH SAVED VEHICLE",vehicleType:"8 FT",chaName:"Example CHA",huNumber:"518084626",awbNumber:"518084626",customerName:"Example customer",pickupLocation:sites.find(s=>s.value===site)?.origin||"Origin",dropLocation:sites.find(s=>s.value===site)?.destination||"Destination",openingTime:"07:00",mrbArrivalTime:"14:30",closingTime:"16:00"};
    return bookBuffer([headers,[...cols.map(([,key])=>sample[key]||""),"2026-07-01",...(!isCity(site)?[40]:[])]],site+" Import",false);

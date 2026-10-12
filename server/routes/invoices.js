@@ -64,10 +64,10 @@ async function prepare(input, session) {
        }
       }
 
-      if(!row.tollParking)continue;
+      if(!row.monthlyParking)continue;
       const trip=trips.find(t=>String(t._id)===String(row._id)),month=row.date.slice(0,7),key=`adhoc-parking:${trip.vehicleId}:${month}`;
       if(await BillingClaim.exists({key}).session(session||null))continue;
-      lines.push({description:`Monthly passes / toll, entry & parking - ${month}`,category:"Adhoc monthly parking",vehicleId:String(trip.vehicleId),vehicleNumber:trip.vehicleNumber,quantity:1,rate:row.tollParking,amount:row.tollParking,taxable:false});keys.push(key);parkingSnapshots.set(String(row._id),row.tollParking);
+      lines.push({description:`Monthly passes / toll, entry & parking - ${month}`,category:"Adhoc monthly parking",vehicleId:String(trip.vehicleId),vehicleNumber:trip.vehicleNumber,quantity:1,rate:row.monthlyParking,amount:row.monthlyParking,taxable:false});keys.push(key);parkingSnapshots.set(String(row._id),row.monthlyParking);
     }
   } else {
     const fleet=await prepareFleet(input,session);
@@ -83,7 +83,7 @@ async function prepare(input, session) {
   const invoiceMonth=from.toLocaleDateString("en-IN",{month:"long",year:"numeric",timeZone:"Asia/Kolkata"});
   const tripSnapshot=trips.map(t=>({accPassSnapshot:passSnapshots.get(String(t._id))||0,tripId:t.tripId,site:t.site,dutyKind:t.dutyKind,adhocService:t.adhocService,distanceBand:t.distanceBand,parkingSnapshot:t.adhocService?(parkingSnapshots.get(String(t._id))||0):t.parkingSnapshot,calculation:t.calculation,subtotal:t.subtotal,vehicleNumber:t.vehicleNumber,vehicleType:t.vehicleType,
     periodFrom:t.periodFrom,periodTo:t.periodTo,pickupLocation:t.pickupLocation,dropLocation:t.dropLocation,
-    entries:t.entries,totalHours:t.totalHours,baseDutyHours:t.baseDutyHours,overtimeHours:t.overtimeHours,
+    entries:t.adhocService==="Kilometre"?t.entries.map(e=>{const {customerName,...entry}=e.toObject?e.toObject():e;return entry;}):t.entries,totalHours:t.totalHours,baseDutyHours:t.baseDutyHours,overtimeHours:t.overtimeHours,
     baseAmount:t.baseAmount,overtimeAmount:t.overtimeAmount,extraAmount:t.extraAmount,totalAmount:t.totalAmount,
     distanceKm:t.distanceKm,customerId:{companyName:c.companyName},status:t.status}));
   const data={...input,...calc,nonTaxableAmount:totals.nonTaxable,

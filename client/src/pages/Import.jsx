@@ -13,7 +13,7 @@ export default function Import() {
     [file, setFile] = useState(null),
     [batch, setBatch] = useState(null),
     [mapping, setMapping] = useState({}),
-    [header, setHeader] = useState({...initialTrip(),...(selected?{site:selected.value,adhocService:["Inbound","Outbound"].includes(selected.value)?"City":"Kilometre",pickupLocation:selected.origin,dropLocation:selected.destination,distanceBand:"0-50"}:{})}),
+    [header, setHeader] = useState({...initialTrip(),...(selected?{site:selected.value,adhocService:["Inbound","Outbound"].includes(selected.value)?"City":"Kilometre",routeId:selected.routeId||"",pickupLocation:selected.origin,dropLocation:selected.destination,distanceBand:"0-50"}:{})}),
     [preview, setPreview] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -21,7 +21,7 @@ export default function Import() {
     [durationFormat, setDurationFormat] = useState("hoursMinutes"),
     [result, setResult] = useState(null);
   function change(k, v) {
-    setHeader((x) => ({ ...x, [k]: v,...(k==="site"?{adhocService:["Inbound","Outbound"].includes(v)?"City":"Kilometre",pickupLocation:siteChoices.find(s=>s.value===v)?.origin||"",dropLocation:siteChoices.find(s=>s.value===v)?.destination||""}:{}) }));
+    setHeader((x) => ({ ...x, [k]: v,...(k==="site"?{adhocService:["Inbound","Outbound"].includes(v)?"City":"Kilometre",routeId:siteChoices.find(s=>s.value===v)?.routeId||"",pickupLocation:siteChoices.find(s=>s.value===v)?.origin||"",dropLocation:siteChoices.find(s=>s.value===v)?.destination||""}:{}) }));
     setPreview(null);
   }
   async function upload(e) {

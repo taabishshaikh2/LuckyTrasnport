@@ -41,7 +41,7 @@ export const config = {
 
       f("shiftHours","Shift hours"),f("fixedRate","Fixed rate per KM","number"),
 
-      
+
 
       f("effectiveFrom","Valid from","date"),f("effectiveTo","Valid until (optional)","date"),f("active","Active","checkbox")],
 
@@ -242,27 +242,21 @@ export const config = {
 
     id: "routeId",
 
-    defaults: { category: "Regular", active: true, order: 0 },
+    defaults: { category: "Special", active: true, order: 0 },
 
     fields: [
 
       f("routeName", "Route name"),
-      f("site","Trip site (optional; defaults to route name)"),
 
-      f("pickupLocation", "Pickup"),
 
-      f("dropLocation", "Drop"),
+      f("pickupLocation", "Origin"),
 
-      f("category", "Category", "text", [
+      f("dropLocation", "Destination"),
 
-        "Inbound",
-
-        "Outbound",
-
-        "Regular",
-
-        "Special",
-
+      f("category", "Service section", "text", [
+        {value:"Inbound",label:"Intercity - Inbound"},
+        {value:"Outbound",label:"Intercity - Outbound"},
+        {value:"Special",label:"Special - KM services"},
       ]),
 
       f("order", "Display order", "number"),

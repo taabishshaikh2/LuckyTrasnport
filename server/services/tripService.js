@@ -49,7 +49,9 @@ export async function previewTrip(input, session) {
   const driver = await Driver.findById(input.driverId, null, opts);
   const customer = await Customer.findById(input.customerId, null, opts);
   const savedRoutes=input.adhocService?await Route.find({archived:false,active:true},null,opts):[];
-  const route = input.adhocService ? {routeName:savedRoutes.find(r=>routeSite(r)===input.site)?.routeName||sites.find(s=>s.value===input.site)?.label,category:input.site,active:true} : await Route.findById(input.routeId, null, opts);
+  const savedRoute=input.adhocService?(input.routeId?savedRoutes.find(r=>String(r._id)===String(input.routeId)):savedRoutes.find(r=>routeSite(r)===input.site)):null;
+  if(input.adhocService&&input.routeId&&(!savedRoute||routeSite(savedRoute)!==input.site))throw new AppError("Select an active location matching this trip site");
+  const route = input.adhocService ? savedRoute||{routeName:sites.find(s=>s.value===input.site)?.label,category:input.site,active:true} : await Route.findById(input.routeId, null, opts);
   if(input.adhocService){
    if(input.overrideAmount!=null || input.manualAmount!=null)throw new AppError("Adhoc entries use the saved service rate");
    if(vehicle?.branded)throw new AppError("Select an Adhoc vehicle");
@@ -93,7 +95,7 @@ export async function previewTrip(input, session) {
   const cityChart=input.adhocService==="City" ? await CityRate.findOne({vehicleType:vehicleRateType(vehicle),active:true,archived:false},null,opts).lean() : null;
   const rate = input.adhocService ? adhocRate(input,input.adhocService==="City"?cityChart:chart) : chart ? distanceRate(chart,input.distanceKm,includedHours) : selectRate(rates,{...input,vehicleType:vehicle.vehicleType});
   if (
-    route.category === "Special" &&
+    (route.category === "Special" || input.adhocService === "Kilometre") &&
     (!input.pickupLocation || !input.dropLocation)
   )
     throw new AppError("Special trips require pickup and drop locations");

@@ -63,9 +63,25 @@ test("Special layouts match KM bands, route names and saved per-KM rates",async(
  const {adhocColumns,adhocGroups}=await import("../../shared/adhoc.js"),{adhocWorkbook}=await import("../services/excelExportService.js"),XLSX=(await import("xlsx")).default;
  const make=(id,band,origin,destination)=>{const input={adhocService:"Kilometre",site:"Special",distanceBand:band,distanceKm:band==="Above 150"?392:0,totalHours:8,pickupLocation:origin,dropLocation:destination};const rate=adhocRate(input,chart);return {_id:id,tripId:id,...input,...calculateTrip(input,rate),rateSnapshot:rate,customerId:{companyName:"BOSCH"},vehicleNumber:"MH01TEST",vehicleType:"8 FT",periodFrom:"2026-06-02",entries:[{awbNumber:"9936468426",openingTime:"02:10",closingTime:"09:40",tollParking:1559}]};};
  const trips=[make("a","0-50","DG1","PNQ SPL"),make("b","50-150","DG1","PNQ SPL"),make("c","Above 150","ACC","PNQ SPL"),make("d","Above 150","Warehouse","Other depot")],rows=adhocRows(trips,[],false);
- assert.equal(rows[0].tripCharges,2200);assert.equal(rows[1].tripCharges,3300);assert.equal(rows[2].tripCharges,7056);assert.equal(rows[2].ratePerKm,18);assert.equal(rows[2].perTripHours,16);assert.equal(rows[2].customerName,"BOSCH");assert.equal(rows[2].totalServiceCharges,8615);
+ assert.equal(rows[0].tripCharges,2200);assert.equal(rows[1].tripCharges,3300);assert.equal(rows[2].tripCharges,7056);assert.equal(rows[2].ratePerKm,18);assert.equal(rows[2].perTripHours,16);assert.equal(rows[2].customerName,"");assert.equal(rows[2].totalServiceCharges,8615);
  const groups=adhocGroups(rows);assert.equal(groups.length,3);assert.equal(groups[0].rows.length,2);
- assert.deepEqual(adhocColumns("Special",groups[0].rows).map(c=>c[0]),["SR.NO","DATE","VEHICLE - NO","VEHICLE TYPE","AWB NO","ORIGIN","DESTINATION","CUSTOMER","OPENING TIME","CLOSING TIME","PER TRIP HRS","TOTAL HRS","O.T IN HRS","SDC CHARGES","CASH & FAST TAG TOLL","TOTAL AMOUNT"]);
- assert.equal(adhocColumns("Special",groups[1].rows)[13][0],"ACC TO PNQ SPL TOTAL KM");assert.equal(adhocColumns("Special",groups[1].rows)[14][0],"RATE PER KM");assert.equal(adhocColumns("Inbound",rows).length,12);assert.ok(!adhocColumns("Outbound",rows).some(c=>c[1]==="ratePerKm"));
- const wb=XLSX.read(adhocWorkbook(trips,"Special",{}, {includeParking:false}),{type:"buffer"});assert.equal(wb.SheetNames.length,3);const sheet=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[1]],{header:1});const header=sheet.findIndex(r=>r.includes("RATE PER KM"));assert.equal(sheet[header+1][13],392);assert.equal(sheet[header+1][14],18);assert.equal(sheet[header+1][15],7056);assert.equal(sheet[header+1][16],1559);
+ assert.deepEqual(adhocColumns("Special",groups[0].rows,true).map(c=>c[0]),["SR.NO","DATE","VEHICLE - NO","VEHICLE TYPE","AWB NO","ORIGIN","DESTINATION","CUSTOMER","OPENING TIME","CLOSING TIME","PER TRIP HRS","TOTAL HRS","O.T IN HRS","SDC CHARGES","CASH & FAST TAG TOLL","TOTAL AMOUNT"]);
+ assert.equal(adhocColumns("Special",groups[1].rows,true)[13][0],"ACC TO PNQ SPL TOTAL KM");assert.equal(adhocColumns("Special",groups[1].rows,true)[14][0],"RATE PER KM");assert.equal(adhocColumns("Inbound",rows).length,12);assert.ok(!adhocColumns("Outbound",rows).some(c=>c[1]==="ratePerKm"));
+ const wb=XLSX.read(adhocWorkbook(trips,"Special",{}, {includeParking:false}),{type:"buffer"});assert.equal(wb.SheetNames.length,3);const lowerSheet=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});assert.ok(!lowerSheet.some(r=>r.includes("RATE PER KM")));const sheet=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[1]],{header:1});const header=sheet.findIndex(r=>r.includes("RATE PER KM"));assert.equal(sheet[header+1][13],392);assert.equal(sheet[header+1][14],18);assert.equal(sheet[header+1][15],7056);assert.equal(sheet[header+1][16],1559);
 });
+
+test("Special trip customer is optional and visible only in trip Excel",async()=>{
+ const {adhocColumns}=await import("../../shared/adhoc.js"),{adhocWorkbook,siteTripRows}=await import("../services/excelExportService.js"),XLSX=(await import("xlsx")).default;
+ const trip={_id:"s",site:"Special",adhocService:"Kilometre",distanceBand:"0-50",periodFrom:"2026-07-01",customerId:{companyName:"DHL"},vehicleNumber:"MH01",baseAmount:2200,entries:[{customerName:"BOSCH"}]};
+ const row=adhocRows([trip])[0];assert.equal(row.customerName,"BOSCH");assert.equal(adhocRows([{...trip,entries:[{}]}])[0].customerName,"");assert.ok(!adhocColumns("Special",[row]).some(([,key])=>key==="customerName"));assert.equal(siteTripRows([trip])[0].customerName,"DHL");
+ const text=options=>{const wb=XLSX.read(adhocWorkbook([trip],"Special",{},options),{type:"buffer"});return JSON.stringify(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1}));};
+ assert.match(text({}),/BOSCH/);assert.doesNotMatch(text({includeTripCustomer:false}),/BOSCH|CUSTOMER/);
+});
+
+ test("location sections preserve existing sites and distinct special routes",async()=>{
+ const {siteOptions,locationGroup,routeSite}=await import("../../shared/routeSites.js");
+ const routes=[{_id:"1",category:"Inbound",routeName:"Inbound",active:true},{_id:"2",category:"Outbound",routeName:"Outbound",active:true},{_id:"3",category:"Regular",routeName:"Goregaon to Cargo",active:true},{_id:"4",category:"Special",routeName:"Depot to PNQ",pickupLocation:"Depot",dropLocation:"PNQ",active:true},{_id:"5",category:"Special",routeName:"Warehouse to PNQ",pickupLocation:"Warehouse",dropLocation:"PNQ",active:true}];
+ assert.deepEqual(routes.map(locationGroup),["Intercity","Intercity","Special","Special","Special"]);
+ assert.equal(routeSite({...routes[2],category:"Special",site:routeSite(routes[2])}),"Goregaon");
+ const options=siteOptions(routes);assert.equal(options.length,5);assert.equal(options[3].value,"Depot to PNQ");assert.equal(options[3].routeId,"4");assert.equal(options[3].destination,"PNQ");assert.equal(options[4].value,"Warehouse to PNQ");
+ });

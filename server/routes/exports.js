@@ -72,7 +72,7 @@ r.get(
         return send(res,brandedWorkbook(logs,vehicles,offs,{company:i.companySnapshot,invoice:i}),i.invoiceNumber+"-branded-log","xlsx");
       }
       const profile=i.site;
-      if(i.tripSnapshot?.some(t=>t.adhocService))return send(res,adhocWorkbook(i.tripSnapshot,profile,i.companySnapshot,{from:i.periodFrom?.toISOString().slice(0,10),to:i.periodTo?.toISOString().slice(0,10)}),i.invoiceNumber+"-supporting","xlsx");
+      if(i.tripSnapshot?.some(t=>t.adhocService))return send(res,adhocWorkbook(i.tripSnapshot,profile,i.companySnapshot,{includeTripCustomer:false,from:i.periodFrom?.toISOString().slice(0,10),to:i.periodTo?.toISOString().slice(0,10)}),i.invoiceNumber+"-supporting","xlsx");
         return send(res,profile ? siteWorkbook(i.tripSnapshot || [],profile,i) : await tripWorkbook(i.tripSnapshot || []),i.invoiceNumber + "-supporting","xlsx");
       }
       filter._id = { $in: i.tripIds };
