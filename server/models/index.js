@@ -38,6 +38,8 @@ export const Vehicle = make("Vehicle", {
   shiftHours:Number, branded:{type:Boolean,default:false},
   adcRate:{type:Number,default:0},amcRate:{type:Number,default:0},parkingMonthly:{type:Number,default:0},tollEntryMonthly:{type:Number,default:0},
   capacity: String,
+  insuranceValid:{type:Boolean,default:false},insuranceExpiry:String,
+  pucValid:{type:Boolean,default:false},pucExpiry:String,
   status: { type: String, default: "Active" },
   notes: String,
 });

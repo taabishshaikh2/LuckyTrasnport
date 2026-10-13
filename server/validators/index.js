@@ -85,11 +85,13 @@ export const masterSchemas = {
     shiftHours:z.union([num.positive().max(168),z.literal("")]).optional().transform(v=>v===""?undefined:v), branded:z.boolean().default(false),
     adcRate:n,amcRate:n,parkingMonthly:n,tollEntryMonthly:n,
     capacity: optional,
+    insuranceValid:z.boolean().default(false),insuranceExpiry:optDate,
+    pucValid:z.boolean().default(false),pucExpiry:optDate,
     status: z
       .enum(["Active", "On Trip", "Maintenance", "Inactive"])
       .default("Active"),
     notes: optional,
-  }),
+  }).refine(v=>!v.insuranceValid||!!v.insuranceExpiry,{message:"Enter insurance expiry date",path:["insuranceExpiry"]}).refine(v=>!v.pucValid||!!v.pucExpiry,{message:"Enter PUC expiry date",path:["pucExpiry"]}).transform(v=>({...v,insuranceExpiry:v.insuranceValid?v.insuranceExpiry:"",pucExpiry:v.pucValid?v.pucExpiry:""})),
   drivers: z.object({
     fullName: required,
     phone,

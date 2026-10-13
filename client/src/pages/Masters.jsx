@@ -509,7 +509,7 @@ export default function Masters({ entity, user, vehicleKind }) {
 
             <div className="form-grid">
 
-              {cfg.fields.filter(f=>!(f.name==="site" && ["fleetRates","fleetManagers","fuelCharges","vehicleExpenses","airportExpenses"].includes(entity))).filter(f=>entity!=="vehicles" || (edit?.branded ? f.name!=="branded" : ["vehicleNumber","vehicleType"].includes(f.name))).map((f) => (
+              {cfg.fields.filter(f=>!(f.name==="site" && ["fleetRates","fleetManagers","fuelCharges","vehicleExpenses","airportExpenses"].includes(entity))).filter(f=>entity!=="vehicles" || (edit?.branded ? f.name!=="branded" : ["vehicleNumber","vehicleType","insuranceValid","insuranceExpiry","pucValid","pucExpiry"].includes(f.name))).filter(f=>entity!=="vehicles" || (f.name!=="insuranceExpiry" || edit.insuranceValid)&&(f.name!=="pucExpiry" || edit.pucValid)).map((f) => (
 
                 <Field
 
@@ -541,7 +541,7 @@ export default function Masters({ entity, user, vehicleKind }) {
 
                     "stateCode",
 
-                  ].includes(f.name)}
+                  ].includes(f.name) || entity==="vehicles"&&["insuranceExpiry","pucExpiry"].includes(f.name)}
 
                   options={entity==="vehicles"&&!edit.branded ? undefined : optionsFor(f.name) || f.options}
 

@@ -105,7 +105,7 @@ export const config = {
 
     id: "vehicleId",
 
-    defaults: { vehicleType: "17 FT", status: "Active" },
+    defaults: { vehicleType: "17 FT", status: "Active",insuranceValid:false,pucValid:false },
 
     fields: [
 
@@ -133,6 +133,10 @@ export const config = {
       f("customVehicleType", "Custom type"),
 
       f("capacity", "Capacity"),
+      f("insuranceValid","Valid insurance","checkbox"),
+      f("insuranceExpiry","Insurance expiry date","date"),
+      f("pucValid","Valid PUC","checkbox"),
+      f("pucExpiry","PUC expiry date","date"),
 
       status(["Active", "Maintenance", "Inactive"]),
 
