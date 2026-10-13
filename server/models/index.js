@@ -379,4 +379,4 @@ export const CompanyProfile = mongoose.model(
   ),
 );
 
-export const GstRecord=make("GstRecord",{billKey:{type:String,required:true,unique:true},billNumber:String,customerName:String,customerGstin:String,billDate:Date,location:String,serviceDescription:String,taxableValue:Number,toll:Number,totalAmount:Number,igstAmount:Number,cgstAmount:Number,sgstAmount:Number,createdBy:ref("User")},s=>s.index({billDate:1}));
+export const GstRecord=make("GstRecord",{billKey:{type:String,required:true,unique:true},billNumber:String,customerName:String,customerGstin:String,billDate:Date,location:String,serviceDescription:String,taxableValue:Number,toll:Number,totalAmount:Number,igstAmount:Number,cgstAmount:Number,sgstAmount:Number,roundOff:Number,totalBillAmount:Number,receiveDate:Date,paymentDetails:String,receivedAmount:Number,differenceTds:Number,createdBy:ref("User")},s=>s.index({billDate:1}));

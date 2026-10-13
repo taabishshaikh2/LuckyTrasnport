@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { z } from "zod";
-import { Invoice, GstRecord, Audit } from "../models/index.js";
+import { Invoice, GstRecord, Audit, Payment } from "../models/index.js";
 import { operations } from "../middleware/auth.js";
 import { importLimit } from "../middleware/security.js";
 import { wrap, ok, AppError } from "../utils/errors.js";
@@ -35,9 +35,13 @@ async function records(query) {
   ]);
   const invoiceKeys = await Invoice.find().select("invoiceNumber").lean();
   const keys = new Set(invoiceKeys.map((i) => billKey(i.invoiceNumber)));
+  const payments = await Payment.find({
+    invoiceId: { $in: invoices.map((i) => i._id) },
+  }).lean();
   return combineGstRows(
     invoices,
     imports.filter((r) => !keys.has(billKey(r.billNumber))),
+    payments,
   );
 }
 router.get(

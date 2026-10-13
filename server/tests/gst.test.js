@@ -82,3 +82,76 @@ test("GST import rejects invalid dates, totals, tax types and duplicate bills be
   assert.equal(duplicate.errors.length, 1);
   assert.match(duplicate.errors[0].message, /Duplicate/);
 });
+
+test("GST payments include multiple receipts, latest date and signed round off", () => {
+  const invoice = {
+    _id: "p1",
+    invoiceNumber: "P1",
+    invoicedTo: "Payment QA",
+    invoiceDate: "2026-10-01",
+    baseAmount: 100,
+    nonTaxableAmount: 0,
+    cgstAmount: 9,
+    sgstAmount: 9,
+    roundOff: -0.22,
+    totalAmount: 117.78,
+  };
+  const payments = [
+    {
+      invoiceId: "p1",
+      paymentDate: "2026-10-15",
+      amount: 20,
+      paymentMode: "NEFT",
+      referenceNumber: "REF2",
+    },
+    {
+      invoiceId: "p1",
+      paymentDate: "2026-10-10",
+      amount: 80,
+      paymentMode: "NEFT",
+      referenceNumber: "REF1",
+    },
+    { invoiceId: "other", paymentDate: "2026-10-20", amount: 10 },
+  ];
+  const [row] = combineGstRows([invoice], [], payments);
+  assert.equal(row.roundOff, -0.22);
+  assert.equal(row.totalBillAmount, 117.78);
+  assert.equal(row.receivedAmount, 100);
+  assert.equal(row.differenceTds, 17.78);
+  assert.equal(row.receiveDate, "2026-10-15");
+  assert.ok(
+    row.paymentDetails.indexOf("REF1") < row.paymentDetails.indexOf("REF2"),
+  );
+  const parsed = parseGstWorkbook(gstWorkbook([row]));
+  assert.equal(parsed.errors.length, 0);
+  assert.equal(parsed.rows[0].roundOff, -0.22);
+  assert.equal(parsed.rows[0].receivedAmount, 100);
+});
+test("GST import reads bracketed round off and preserves legacy column files", () => {
+  const book = XLSX.read(gstWorkbook([], true), { type: "buffer" });
+  const grid = XLSX.utils.sheet_to_json(book.Sheets["GST records"], {
+    header: 1,
+  });
+  grid[1][13] = "(0.22)";
+  grid[1][14] = 12299.78;
+  grid[1][18] = 299.78;
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(grid), "GST");
+  const parsed = parseGstWorkbook(
+    XLSX.write(wb, { type: "buffer", bookType: "xlsx" }),
+  );
+  assert.equal(parsed.errors.length, 0);
+  assert.equal(parsed.rows[0].roundOff, -0.22);
+  const legacy = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    legacy,
+    XLSX.utils.aoa_to_sheet(grid.map((r) => r.slice(0, 13))),
+    "GST",
+  );
+  const old = parseGstWorkbook(
+    XLSX.write(legacy, { type: "buffer", bookType: "xlsx" }),
+  );
+  assert.equal(old.errors.length, 0);
+  assert.equal(old.rows[0].totalBillAmount, 12300);
+  assert.equal(old.rows[0].differenceTds, 12300);
+});

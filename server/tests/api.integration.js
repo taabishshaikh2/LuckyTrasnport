@@ -859,6 +859,9 @@ test("security boundaries, one-time password recovery and session revocation",as
  try{
   assert.equal((await request(app).get("/api/gst")).status,401);assert.equal((await request(app).get("/api/gst").set("Authorization","Bearer "+driver)).status,403);
   const listed=await get("/gst?from=2026-10-01&to=2026-10-31");assert.equal(listed.status,200);const row=listed.body.data.find(r=>r.billNumber===inv.invoiceNumber);assert.equal(row.customerName,"GST QA customer");assert.equal(row.totalAmount,10500);assert.equal(row.cgstAmount,900);assert.equal(row.invoiceId,String(inv._id));
+  const receipt=await Payment.create({paymentId:"GST-QA-PAY",invoiceId:inv._id,paymentDate:new Date("2026-10-15"),paymentMode:"NEFT",referenceNumber:"GST-REF",amount:12000});
+  const paid=await get("/gst?from=2026-10-01&to=2026-10-31");const received=paid.body.data.find(r=>r.billNumber===inv.invoiceNumber);assert.equal(received.totalBillAmount,12300);assert.equal(received.receivedAmount,12000);assert.equal(received.differenceTds,300);assert.equal(received.receiveDate,"2026-10-15");assert.match(received.paymentDetails,/GST-REF/);
+
   assert.equal((await get("/gst?from=2026-10-31&to=2026-10-01")).status,400);
   const file=gstWorkbook([],true);assert.equal((await upload(file,false,driver)).status,403);const review=await upload(file);assert.equal(review.status,200,JSON.stringify(review.body));assert.equal(review.body.data.rows.length,1);assert.equal(await GstRecord.countDocuments(),0);
   const saved=await upload(file,true);assert.equal(saved.status,201,JSON.stringify(saved.body));assert.equal(saved.body.data.count,1);const again=await upload(file,true);assert.equal(again.body.data.count,0);assert.equal(again.body.data.skipped,1);
@@ -866,5 +869,5 @@ test("security boundaries, one-time password recovery and session revocation",as
   const invalid=gstWorkbook([{...review.body.data.rows[0],billNumber:"BAD-GST",totalAmount:999,srNo:1}]);const rejected=await upload(invalid,true);assert.equal(rejected.status,400);assert.equal(await GstRecord.countDocuments(),1);
   const exported=await get("/gst/export.xlsx?from=2026-10-01&to=2026-10-31").buffer(true).parse((res,callback)=>{const chunks=[];res.on("data",c=>chunks.push(c));res.on("end",()=>callback(null,Buffer.concat(chunks)));});assert.equal(exported.status,200);const book=XLSX.read(exported.body,{type:"buffer"});const data=XLSX.utils.sheet_to_json(book.Sheets["GST records"],{header:1});assert.ok(data.some(r=>r.includes("GST-QA-001")));assert.ok(data.some(r=>r.includes("SAMPLE-001")));
   await Invoice.updateOne({_id:inv._id},{$set:{status:"Cancelled"}});const cancelled=await get("/gst?from=2026-10-01&to=2026-10-31");assert.ok(!cancelled.body.data.some(r=>r.billNumber===inv.invoiceNumber));
- }finally{await Invoice.deleteOne({_id:inv._id});await GstRecord.deleteMany({});}
+ }finally{await Payment.deleteMany({invoiceId:inv._id});await Invoice.deleteOne({_id:inv._id});await GstRecord.deleteMany({});}
  });

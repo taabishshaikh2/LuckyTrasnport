@@ -62,8 +62,10 @@ export default function Gst() {
       </div>
       <p>
         Invoices appear automatically. Cancelled invoices are excluded. Total
-        amount is before GST; Toll includes saved non-taxable toll, parking and
-        pass charges.
+        amount is before GST; Total Bill Amount includes GST and round off. Toll
+        includes saved non-taxable toll, parking and pass charges. Receive Date
+        is the latest payment date. Difference/TDS is the bill amount minus
+        receipts.
       </p>
       <div className="card form-grid">
         <Field

@@ -18,9 +18,50 @@ export const gstRecordSchema = z
     billNumber: text.min(1).max(100),
     location: text,
     serviceDescription: text,
-    ...Object.fromEntries(gstMoneyKeys.map((k) => [k, money])),
+    receiveDate: z
+      .string()
+      .refine(
+        (s) =>
+          !s ||
+          (/^\d{4}-\d{2}-\d{2}$/.test(s) &&
+            !isNaN(Date.parse(s)) &&
+            new Date(s).toISOString().slice(0, 10) === s),
+        "Invalid receive date",
+      ),
+    paymentDetails: z.string().trim().max(5000),
+    ...Object.fromEntries(
+      gstMoneyKeys.map((k) => [
+        k,
+        ["roundOff", "differenceTds"].includes(k)
+          ? z.number().finite().min(-1e12).max(1e12)
+          : money,
+      ]),
+    ),
   })
   .superRefine((r, ctx) => {
+    if (
+      Math.abs(
+        r.totalBillAmount -
+          r.totalAmount -
+          r.igstAmount -
+          r.cgstAmount -
+          r.sgstAmount -
+          r.roundOff,
+      ) > 0.011
+    )
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Total bill amount must equal total before GST plus taxes and round off",
+      });
+    if (
+      Math.abs(r.differenceTds - r.totalBillAmount + r.receivedAmount) > 0.011
+    )
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Difference/TDS must equal total bill amount minus received amount",
+      });
     if (Math.abs(r.totalAmount - r.taxableValue - r.toll) > 0.011)
       ctx.addIssue({
         code: "custom",
@@ -37,6 +78,16 @@ export const gstRecordSchema = z
         message: "CGST and SGST amounts must match",
       });
   });
+function numberValue(v) {
+  const s = String(v ?? "")
+    .trim()
+    .replace(/,/g, "");
+  return !s || s === "-"
+    ? 0
+    : /^\(.*\)$/.test(s)
+      ? -Number(s.slice(1, -1))
+      : Number(s);
+}
 function dateValue(v) {
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   if (typeof v === "number") {
@@ -85,7 +136,17 @@ export function parseGstWorkbook(buffer) {
         ]),
     );
     const missing = Object.entries(indexes).filter(
-      ([key, index]) => index < 0 && key !== "sgstAmount",
+      ([key, index]) =>
+        index < 0 &&
+        ![
+          "sgstAmount",
+          "roundOff",
+          "totalBillAmount",
+          "receiveDate",
+          "paymentDetails",
+          "receivedAmount",
+          "differenceTds",
+        ].includes(key),
     );
     if (missing.length) {
       errors.push({
@@ -105,10 +166,10 @@ export function parseGstWorkbook(buffer) {
       const raw = Object.fromEntries(
         Object.entries(indexes).map(([key, index]) => [
           key,
-          key === "billDate"
+          ["billDate", "receiveDate"].includes(key)
             ? dateValue(cells[index])
             : gstMoneyKeys.includes(key)
-              ? Number(String(cells[index] ?? 0).replace(/,/g, "") || 0)
+              ? numberValue(cells[index])
               : String(cells[index] ?? "").trim(),
         ]),
       );
@@ -118,6 +179,15 @@ export function parseGstWorkbook(buffer) {
       )
         continue;
       if (indexes.sgstAmount < 0) raw.sgstAmount = raw.cgstAmount;
+      if (indexes.totalBillAmount < 0)
+        raw.totalBillAmount =
+          raw.totalAmount +
+          raw.igstAmount +
+          raw.cgstAmount +
+          raw.sgstAmount +
+          raw.roundOff;
+      if (indexes.differenceTds < 0)
+        raw.differenceTds = raw.totalBillAmount - raw.receivedAmount;
       const parsed = gstRecordSchema.safeParse(raw);
       if (!parsed.success) {
         errors.push({
@@ -174,6 +244,12 @@ export function gstWorkbook(rows, sample = false) {
             0,
             900,
             900,
+            0,
+            12300,
+            "2026-10-15",
+            "NEFT - SAMPLE-REF - 12000.00",
+            12000,
+            300,
           ],
         ]
       : rows.map((r) => gstColumns.map(([, key]) => r[key] ?? ""))),
