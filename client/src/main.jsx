@@ -1,3 +1,4 @@
+import Gst from "./pages/Gst";
 import PasswordRecovery from "./features/PasswordRecovery";
 import WeeklyOffs from "./pages/WeeklyOffs";
 import React, { useEffect, useState } from "react";
@@ -142,6 +143,7 @@ function App() {
                 element={entity==="vehicles" ? <Vehicles user={user}/> : <Masters entity={entity} user={user} />}
               />
             ))}
+            <Route path="gst" element={<Gst/>}/>
             <Route path="weeklyOffs" element={<WeeklyOffs/>}/>
             <Route path="rates" element={<RateChart user={user}/>} />
             <Route path="invoices" element={<InvoiceList />} />

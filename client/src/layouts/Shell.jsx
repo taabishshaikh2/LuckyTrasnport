@@ -33,6 +33,7 @@ export const moreItems = [
   ["/fuelCharges", "Fuel charges", Wallet],
   ["/routes", "Locations", MapPin],
   ["/payments", "Payments", Wallet],
+  ["/gst", "GST records", FileSpreadsheet],
   ["/reports", "Reports & exports", FileSpreadsheet],
   ["/settings", "Settings", Settings],
   ["/users", "User management", Shield],

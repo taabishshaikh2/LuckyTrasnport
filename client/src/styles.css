@@ -827,3 +827,7 @@ input::-webkit-date-and-time-value {min-width:0;text-align:left;}
  dl {min-width:0;}
  dd {margin-left:0;}
 }
+
+.gst-table { min-width: 1900px; }
+.gst-table th { white-space: normal; }
+.gst-table tfoot { font-weight: 700; background: #edf3f9; }
