@@ -871,3 +871,27 @@ test("security boundaries, one-time password recovery and session revocation",as
   await Invoice.updateOne({_id:inv._id},{$set:{status:"Cancelled"}});const cancelled=await get("/gst?from=2026-10-01&to=2026-10-31");assert.ok(!cancelled.body.data.some(r=>r.billNumber===inv.invoiceNumber));
  }finally{await Payment.deleteMany({invoiceId:inv._id});await Invoice.deleteOne({_id:inv._id});await GstRecord.deleteMany({});}
  });
+
+test("expiry emails are daily, concurrency safe, retry failures and stop after renewal",async()=>{
+ const {ReminderSettings,ReminderDelivery}=await import("../models/index.js"),{runExpiryReminders}=await import("../services/expiryReminderService.js");
+ const vehicle=await Vehicle.create({vehicleNumber:"MH01EXPQA",vehicleType:"8 FT",insuranceValid:true,insuranceExpiry:"2026-10-20"});
+ const previousKey=process.env.RESEND_API_KEY,previousFrom=process.env.REMINDER_EMAIL_FROM;
+ try{
+  assert.equal((await request(app).get("/api/reminders/alerts").set("Authorization","Bearer "+driver)).status,403);
+  assert.equal((await request(app).get("/api/reminders/settings").set("Authorization","Bearer "+manager)).status,403);
+  delete process.env.RESEND_API_KEY;delete process.env.REMINDER_EMAIL_FROM;
+  const unconfigured=await request(app).put("/api/reminders/settings").set("Authorization","Bearer "+token).send({enabled:true,recipients:["ops@example.com"]});assert.equal(unconfigured.status,400);
+  process.env.RESEND_API_KEY="test-reminder-secret";process.env.REMINDER_EMAIL_FROM="reminders@example.com";
+  const saved=await request(app).put("/api/reminders/settings").set("Authorization","Bearer "+token).send({enabled:true,recipients:["ops@example.com"]});assert.equal(saved.status,200,JSON.stringify(saved.body));assert.ok(!JSON.stringify(saved.body).includes("test-reminder-secret"));
+  const now=new Date("2026-10-13T06:00:00Z"),sent=[],send=async email=>{sent.push(email);return "fake-provider-id";};
+  const first=await Promise.all([runExpiryReminders({now,send,configured:true}),runExpiryReminders({now,send,configured:true})]);assert.equal(first.reduce((sum,r)=>sum+r.sent,0),1);assert.equal(sent.length,1);
+  const again=await runExpiryReminders({now,send,configured:true});assert.equal(again.sent,0);
+  const tomorrow=await runExpiryReminders({now:new Date("2026-10-14T06:00:00Z"),send,configured:true});assert.equal(tomorrow.sent,1);assert.notEqual(sent[0].key,sent[1].key);
+  await Vehicle.updateOne({_id:vehicle._id},{$set:{insuranceExpiry:"2026-10-19"}});
+  const failed=await runExpiryReminders({now,send:async()=>{throw new Error("sensitive-provider-error");},configured:true});assert.equal(failed.failed,1);const retryEarly=await runExpiryReminders({now,send,configured:true});assert.equal(retryEarly.sent,0);
+  const retry=await runExpiryReminders({now:new Date(+now+31*60000),send,configured:true});assert.equal(retry.sent,1);assert.ok(!(await ReminderDelivery.find({vehicleId:vehicle._id}).lean()).some(d=>JSON.stringify(d).includes("sensitive-provider-error")));
+  await Vehicle.updateOne({_id:vehicle._id},{$set:{insuranceExpiry:"2027-10-19"}});assert.equal((await runExpiryReminders({now,send,configured:true})).sent,0);
+  await Vehicle.updateOne({_id:vehicle._id},{$set:{insuranceExpiry:"2026-10-13"}});assert.equal((await runExpiryReminders({now,send,configured:true})).sent,0);
+  await ReminderSettings.updateOne({_id:"expiry"},{$set:{enabled:false}});assert.equal((await runExpiryReminders({now,send,configured:true})).reason,"disabled");
+ }finally{await Vehicle.deleteOne({_id:vehicle._id});await ReminderDelivery.deleteMany({vehicleId:vehicle._id});await ReminderSettings.deleteOne({_id:"expiry"});if(previousKey===undefined)delete process.env.RESEND_API_KEY;else process.env.RESEND_API_KEY=previousKey;if(previousFrom===undefined)delete process.env.REMINDER_EMAIL_FROM;else process.env.REMINDER_EMAIL_FROM=previousFrom;}
+});

@@ -382,3 +382,6 @@ export const CompanyProfile = mongoose.model(
 );
 
 export const GstRecord=make("GstRecord",{billKey:{type:String,required:true,unique:true},billNumber:String,customerName:String,customerGstin:String,billDate:Date,location:String,serviceDescription:String,taxableValue:Number,toll:Number,totalAmount:Number,igstAmount:Number,cgstAmount:Number,sgstAmount:Number,roundOff:Number,totalBillAmount:Number,receiveDate:Date,paymentDetails:String,receivedAmount:Number,differenceTds:Number,createdBy:ref("User")},s=>s.index({billDate:1}));
+
+export const ReminderSettings=make("ReminderSettings",{_id:{type:String,default:"expiry"},enabled:{type:Boolean,default:false},recipients:[String],updatedBy:ref("User")});
+export const ReminderDelivery=make("ReminderDelivery",{_id:String,day:String,vehicleId:ref("Vehicle"),kind:String,expiryDate:String,recipient:String,state:{type:String,default:"Pending"},lockUntil:Date,retryAt:Date,attempts:{type:Number,default:0},providerId:String,sentAt:Date,lastError:String},s=>s.index({day:1,state:1}));

@@ -1,3 +1,4 @@
+import ExpiryAlerts from "../features/ExpiryAlerts";
 import React from "react";
 import { Link } from "react-router-dom";
 import { Truck, Route, Receipt, IndianRupee, ArrowUpRight } from "lucide-react";
@@ -56,6 +57,7 @@ export default function Home({ user }) {
           <ArrowUpRight size={20} /> Import Excel
         </Link>
       </div>
+      <ExpiryAlerts/>
       <State {...r}>
         {r.data && (
           <>

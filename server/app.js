@@ -1,3 +1,4 @@
+import reminderRoutes from "./routes/reminders.js";
 import gstRoutes from "./routes/gst.js";
 import { ShiftSettings, Audit } from "./models/index.js";
 import { getShiftSettings, shiftSettingsSchema } from "./services/shiftSettingsService.js";
@@ -141,6 +142,7 @@ app.use("/api/masters", masterRoutes);
 app.use("/api/trips", tripRoutes);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/gst", gstRoutes);
+app.use("/api/reminders", reminderRoutes);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/imports",importLimit, importRoutes);
 app.use("/api/exports", exportRoutes);

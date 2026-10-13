@@ -1,3 +1,4 @@
+import {startReminderScheduler} from "./services/expiryReminderService.js";
 import { validateEnv } from "./config/env.js";
 import mongoose from "mongoose";
 import { app } from "./app.js";
@@ -10,12 +11,14 @@ const indexes=await collection.listIndexes().toArray().catch(e=>{if(e.code===26)
 const old=indexes.find(i=>i.name === "tripIds_1");
 if (old && !old.partialFilterExpression?.["tripIds.0"]) await collection.dropIndex("tripIds_1");
 await Promise.all(Object.values(mongoose.models).map((m) => m.init()));
+const stopReminders=startReminderScheduler();
 const server = app.listen(process.env.PORT || 3001, () =>
   console.log("Lucky Transport API started"),
 );
 for (const signal of ["SIGTERM", "SIGINT"])
   process.on(signal, () =>
     server.close(async () => {
+      stopReminders();
       await mongoose.disconnect();
       process.exit(0);
     }),

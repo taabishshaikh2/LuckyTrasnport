@@ -1,3 +1,4 @@
+import ReminderSettings from "../features/ReminderSettings";
 import ShiftSettings from "../features/ShiftSettings";
 import React, { useEffect, useState } from "react";
 import { useData } from "../hooks/useData";
@@ -87,6 +88,7 @@ export default function Settings({ user }) {
           Only an administrator can edit the company profile.
         </p>
       )}
+      <ReminderSettings/>
       <ShiftSettings user={user}/>
       <State {...r}>
         {draft && (
