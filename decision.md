@@ -94,6 +94,20 @@ These describe the existing implementation, not newly approved changes or a comp
   3. Night detention is completely removed from city trip rates, calculations, and invoice summaries.
 - User authorization: user explicitly instructed pushing directly to GitHub (`https://github.com/taabishshaikh2/LuckyTrasnport`).
 
+## D004 - Client and Operational User Guide (Word, PDF, Markdown)
+
+- ID/date: D004 - 4 November 2026.
+- Status: accepted (created per user explicit instruction).
+- Problem: The client needed a comprehensive yet simple and structured guide explaining all application features and operational workflows (masters, compliance permits, trip logging, branded shifts, invoicing models, payment tracking, and step-by-step cheatsheet).
+- Decision: Generated `docs/Lucky_Transport_User_Guide.docx`, `docs/Lucky_Transport_User_Guide.pdf`, and `docs/USER_GUIDE.md` using the project's existing `docx` and `pdfkit` libraries via a reproducible generator script `server/scripts/generateUserGuide.js`.
+- Tradeoffs: Maintained as both binary documents (DOCX and PDF for client distribution) and plain Markdown for Git version tracking.
+- Affected files:
+  - `docs/Lucky_Transport_User_Guide.docx`
+  - `docs/Lucky_Transport_User_Guide.pdf`
+  - `docs/USER_GUIDE.md`
+  - `server/scripts/generateUserGuide.js`
+- Verification: Documents generated cleanly; test suite passed (82/82); build verified.
+
 ## Documentation acceptance - 16 October 2026
 
 - Scope: D001 and D002; decision.md, flow.md and AGENTS.md.
