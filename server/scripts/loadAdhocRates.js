@@ -4,7 +4,7 @@ import {CityRate,TripRate,Audit,User,Vehicle} from "../models/index.js";
 import {masterSchemas} from "../validators/index.js";
 import {sequence} from "../services/sequenceService.js";
 dotenv.config({path:"server/.env",quiet:true});
-const city=[["8 FT","Closed Body Vehicle",1242,645],["9 FT","Closed Body Vehicle",1491,1032],["14 FT","Container truck",1987,1290],["17 FT","Container truck",2657,1320],["20 FT","Container truck",3812,1800]].map(([vehicleType,makeModel,tripRate,nightDetention])=>masterSchemas.cityRates.parse({vehicleType,makeModel,tripRate,overtimeRate:200,nightDetention}));
+const city=[["8 FT","Closed Body Vehicle",1242],["9 FT","Closed Body Vehicle",1491],["14 FT","Container truck",1987],["17 FT","Container truck",2657],["20 FT","Container truck",3812]].map(([vehicleType,makeModel,tripRate])=>masterSchemas.cityRates.parse({vehicleType,makeModel,tripRate,overtimeRate:200}));
 const km=[["8 FT","Closed Body Vehicle",2200,3300,18],["9 FT","Closed Body Vehicle",2750,3850,25],["14 FT","Container truck",3190,4180,27],["17 FT","Container truck",3300,4400,32],["19 FT","Container truck",3560,4800,34],["20 FT","Container truck",3850,5390,36],["Above 20 FT","ODC",9900,14300,48]].map(([vehicleType,makeModel,upTo50,upTo150,above150])=>masterSchemas.tripRates.parse({vehicleType,makeModel,upTo50,upTo150,above150,overtimeRate:200,pnqOvertimeRate:200}));
 try{
  await mongoose.connect(process.env.MONGODB_URI,{serverSelectionTimeoutMS:15000});

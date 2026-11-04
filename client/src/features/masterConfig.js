@@ -24,7 +24,7 @@ export const config = {
  weeklyOffs:{title:"Vehicle weekly offs",label:"name",id:"offId",defaults:{date:today()},fields:[f("customerId","Billing customer"),f("vehicleId","Branded vehicle"),f("date","Off date","date"),notes]},
   fleetManagers:{title:"Fleet managers",label:"name",id:"managerId",defaults:{monthlySalary:0,active:true},fields:[f("name","Manager name"),f("customerId","Billing customer"),f("site","Site","text",sites),f("monthlySalary","Salary per month","number"),f("active","Active","checkbox"),notes]},
 
-  cityRates:{title:"Trip based services (within city limits)",label:"vehicleType",id:"rateId",defaults:{tripRate:0,overtimeRate:0,nightDetention:0,active:true},fields:[f("vehicleType","Vehicle type"),f("makeModel","Vehicle make / model"),f("tripRate","New rate per trip / 8 hours","number"),f("overtimeRate","Additional hour cost (INR)","number"),f("nightDetention","Night detention charge (INR)","number"),f("active","Active","checkbox")]},
+  cityRates:{title:"Trip based services (within city limits)",label:"vehicleType",id:"rateId",defaults:{tripRate:0,overtimeRate:0,active:true},fields:[f("vehicleType","Vehicle type"),f("makeModel","Vehicle make / model"),f("tripRate","New rate per trip / 8 hours","number"),f("overtimeRate","Additional hour cost (INR)","number"),f("active","Active","checkbox")]},
   tripRates:{title:"Kilometre based services",label:"vehicleType",id:"rateId",defaults:{upTo50:0,upTo150:0,above150:0,overtimeRate:0,active:true},
 
     fields:[f("vehicleType","Vehicle type"),f("makeModel","Vehicle make / model"),f("pnqOvertimeRate","Above 150 KM: detention per hour after 16 hours (PNQ only)","number"),f("upTo50","0-50 KM charge","number"),f("upTo150","Above 50-150 KM charge","number"),
@@ -105,7 +105,7 @@ export const config = {
 
     id: "vehicleId",
 
-    defaults: { vehicleType: "17 FT", status: "Active",insuranceValid:false,pucValid:false },
+    defaults: { vehicleType: "17 FT", status: "Active",insuranceValid:false,pucValid:false,fitnessValid:false,advertisingValid:false },
 
     fields: [
 
@@ -137,6 +137,10 @@ export const config = {
       f("insuranceExpiry","Insurance expiry date","date"),
       f("pucValid","Valid PUC","checkbox"),
       f("pucExpiry","PUC expiry date","date"),
+      f("fitnessValid","Valid fitness permit","checkbox"),
+      f("fitnessExpiry","Fitness permit expiry date","date"),
+      f("advertisingValid","Valid advertising permit","checkbox"),
+      f("advertisingExpiry","Advertising permit expiry date","date"),
 
       status(["Active", "Maintenance", "Inactive"]),
 

@@ -54,7 +54,7 @@ export const masterSchemas = {
  }).refine(v=>v.totalHours===8,"Each branded log must be one 8-hour shift").refine(v=>v.held || v.closingKm>=v.openingKm,"Closing KM must not be less than opening KM").refine(v=>!v.held || !!v.holdLocation,"Enter the loading / hold location"),
  weeklyOffs:z.object({customerId:id,vehicleId:id,date,notes:optional}).transform(v=>({...v,name:v.date})),
   fleetManagers:z.object({name:required,customerId:id,site,monthlySalary:num.positive(),active:z.boolean().default(true),notes:optional}),
-  cityRates:z.object({vehicleType:required,makeModel:optional,tripRate:num,overtimeRate:num,nightDetention:n,active:z.boolean().default(true)}),
+  cityRates:z.object({vehicleType:required,makeModel:optional,tripRate:num,overtimeRate:num,active:z.boolean().default(true)}),
   tripRates:z.object({makeModel:optional,pnqOvertimeRate:n,vehicleType:required,upTo50:num,upTo150:num,above150:num,overtimeRate:num,active:z.boolean().default(true)}),
   fleetRates: z.object({name:required,customerId:id,site,vehicleType:required,
     shiftHours:num.positive().max(168),fixedRate:num.positive(),serviceRate:n,amcRate:n,
@@ -87,11 +87,13 @@ export const masterSchemas = {
     capacity: optional,
     insuranceValid:z.boolean().default(false),insuranceExpiry:optDate,
     pucValid:z.boolean().default(false),pucExpiry:optDate,
+    fitnessValid:z.boolean().default(false),fitnessExpiry:optDate,
+    advertisingValid:z.boolean().default(false),advertisingExpiry:optDate,
     status: z
       .enum(["Active", "On Trip", "Maintenance", "Inactive"])
       .default("Active"),
     notes: optional,
-  }).refine(v=>!v.insuranceValid||!!v.insuranceExpiry,{message:"Enter insurance expiry date",path:["insuranceExpiry"]}).refine(v=>!v.pucValid||!!v.pucExpiry,{message:"Enter PUC expiry date",path:["pucExpiry"]}).transform(v=>({...v,insuranceExpiry:v.insuranceValid?v.insuranceExpiry:"",pucExpiry:v.pucValid?v.pucExpiry:""})),
+  }).refine(v=>!v.insuranceValid||!!v.insuranceExpiry,{message:"Enter insurance expiry date",path:["insuranceExpiry"]}).refine(v=>!v.pucValid||!!v.pucExpiry,{message:"Enter PUC expiry date",path:["pucExpiry"]}).refine(v=>!v.fitnessValid||!!v.fitnessExpiry,{message:"Enter fitness permit expiry date",path:["fitnessExpiry"]}).refine(v=>!v.advertisingValid||!!v.advertisingExpiry,{message:"Enter advertising expiry date",path:["advertisingExpiry"]}).transform(v=>({...v,insuranceExpiry:v.insuranceValid?v.insuranceExpiry:"",pucExpiry:v.pucValid?v.pucExpiry:"",fitnessExpiry:v.fitnessValid?v.fitnessExpiry:"",advertisingExpiry:v.advertisingValid?v.advertisingExpiry:""})),
   drivers: z.object({
     fullName: required,
     phone,

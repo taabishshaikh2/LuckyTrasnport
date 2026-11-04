@@ -124,7 +124,7 @@ export function Calculation({ value, site, distanceBand, compact = false }) {
     e = c.explanation;
   const city = ["Inbound", "Outbound"].includes(site || e?.site) || value.rate?.source === "CityRate";
   const hours = n => Number(n || 0).toFixed(2);
-  if(compact) return <section className="card calculation"><h3>Trip summary</h3><p>Duty {hours(e?.totalHours ?? c.totalHours)} hours · Included {hours(e?.baseHours ?? c.baseDutyHours)} hours{!city && <> · {distanceBand || e?.distanceBand} KM service</>}</p><dl>{[["Trip charges",c.baseAmount],["Overtime ("+hours(c.overtimeHours)+" hrs × "+currency(c.overtimeRate)+")",c.overtimeAmount],...(c.nightDetentionAmount>0?[["Night detention",c.nightDetentionAmount]]:[])].map(([label,amount])=><React.Fragment key={label}><dt>{label}</dt><dd>{currency(amount)}</dd></React.Fragment>)}</dl><div className="total">Total <strong>{currency(c.totalAmount)}</strong></div></section>;
+  if(compact) return <section className="card calculation"><h3>Trip summary</h3><p>Duty {hours(e?.totalHours ?? c.totalHours)} hours · Included {hours(e?.baseHours ?? c.baseDutyHours)} hours{!city && <> · {distanceBand || e?.distanceBand} KM service</>}</p><dl>{[["Trip charges",c.baseAmount],["Overtime ("+hours(c.overtimeHours)+" hrs × "+currency(c.overtimeRate)+")",c.overtimeAmount]].map(([label,amount])=><React.Fragment key={label}><dt>{label}</dt><dd>{currency(amount)}</dd></React.Fragment>)}</dl><div className="total">Total <strong>{currency(c.totalAmount)}</strong></div></section>;
   return (
     <section className="card calculation">
       <h3>Charge breakdown</h3>

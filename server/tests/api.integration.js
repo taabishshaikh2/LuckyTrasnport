@@ -726,12 +726,12 @@ test(
     await t.test("Adhoc city and kilometre rates, trip entry and monthly Excel summaries",async()=>{
       const v=(await post("/masters/vehicles",{vehicleNumber:"MH01ADHOCQA",vehicleType:"ADHOC QA",parkingMonthly:7500})).body.data;
       assert.ok(v._id);
-      assert.equal((await post("/masters/cityRates",{vehicleType:"ADHOC QA",makeModel:"Closed body",tripRate:1242,overtimeRate:200,nightDetention:645},manager)).status,403);
-      assert.equal((await post("/masters/cityRates",{vehicleType:"ADHOC QA",makeModel:"Closed body",tripRate:1242,overtimeRate:200,nightDetention:645})).status,201);
+      assert.equal((await post("/masters/cityRates",{vehicleType:"ADHOC QA",makeModel:"Closed body",tripRate:1242,overtimeRate:200},manager)).status,403);
+      assert.equal((await post("/masters/cityRates",{vehicleType:"ADHOC QA",makeModel:"Closed body",tripRate:1242,overtimeRate:200})).status,201);
       assert.equal((await post("/masters/tripRates",{vehicleType:"ADHOC QA",upTo50:2200,upTo150:3300,above150:18,overtimeRate:200,pnqOvertimeRate:250})).status,201);
       const input={customerId:refs.customers._id,vehicleId:v._id,site:"Inbound",adhocService:"City",periodFrom:"2026-06-01",periodTo:"2026-06-01",pickupLocation:"Cargo",dropLocation:"MIDC",entries:[{date:"2026-06-01",openingTime:"20:00",closingTime:"05:30",mrbArrivalTime:"23:00",chaName:"QA CHA"}]};
       const review=await post("/trips/preview",input);assert.equal(review.status,200,JSON.stringify(review.body));assert.equal(review.body.data.calculation.totalAmount,1542);
-      const night=await post("/trips/preview",{...input,nightDetention:true});assert.equal(night.body.data.calculation.totalAmount,2187);
+
       const created=await post("/trips",{...input,status:"Submitted",expectedTotal:1542});assert.equal(created.status,201,JSON.stringify(created.body));assert.equal(created.body.data.parkingSnapshot,7500);assert.equal(created.body.data.entries[0].closingDate,"2026-06-02");assert.equal(created.body.data.rateSnapshot.source,"CityRate");
       const two={...input,periodFrom:"2026-06-03",periodTo:"2026-06-03",entries:[{...input.entries[0],date:"2026-06-03"}]};const next=await post("/trips",{...two,status:"Submitted",expectedTotal:1542});assert.equal(next.status,201,JSON.stringify(next.body));
       const km={...input,site:"VVR",adhocService:"Kilometre",distanceBand:"0-50",distanceKm:40};const k=await post("/trips/preview",km);assert.equal(k.status,200,JSON.stringify(k.body));assert.equal(k.body.data.calculation.totalAmount,2500);

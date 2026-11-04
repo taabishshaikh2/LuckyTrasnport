@@ -15,6 +15,8 @@ export function expiryAlerts(vehicles, now = new Date()) {
     for (const [kind, label] of [
       ["insurance", "Insurance"],
       ["puc", "PUC"],
+      ["fitness", "Fitness permit"],
+      ["advertising", "Advertising permit"],
     ]) {
       const expiry = String(vehicle[kind + "Expiry"] || "").slice(0, 10);
       if (

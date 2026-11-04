@@ -46,7 +46,7 @@ main.jsx /trips/new -> features/AdhocTripForm.jsx.
 
 1. Form state collects route/site, vehicle, timing and service-band inputs; multi-day entry includes the closing date.
 2. review() -> POST /api/trips/preview -> routes/trips.js validation -> tripService.js previewTrip().
-3. previewTrip() resolves referenced records, normalizes duty using dutyTimeService.js pickupDuty(), and selects the applicable city/KM or legacy rate path. adhocRateService.js, distanceRateService.js and tripCalculationService.js contain the relevant rate/calculation helpers.
+3. previewTrip() resolves referenced records, normalizes duty using dutyTimeService.js pickupDuty(), and selects the applicable city/KM or legacy rate path. adhocRateService.js, distanceRateService.js and tripCalculationService.js contain the relevant rate/calculation helpers. Above 150 KM non-PNQ trips bill overtime beyond 8 base hours at overtimeRate (PNQ trips use 16 hours at pnqOvertimeRate); city rates exclude night detention.
 4. The browser displays the returned calculation.
 5. save(status) sends POST /api/trips or PATCH /api/trips/:id, including expectedTotal from the preview. Server validation/calculation and billed-record guards remain authoritative; a browser preview is not trusted as the final amount.
 6. Creation uses tripService.js createTrip(); the route persists changes with its transaction/audit handling. The browser navigates to /trips/:id.
@@ -72,8 +72,8 @@ pages/Gst.jsx -> routes/gst.js (operations permission).
 
 ## 8. Vehicle expiry and Settings branch
 
-- Vehicle master forms -> features/masterConfig.js -> routes/masters.js -> validators/index.js -> Vehicle model. Checked insurance/PUC requires an expiry date.
-- pages/Home.jsx -> features/ExpiryAlerts.jsx -> routes/reminders.js alerts -> expiryReminderService.js getExpiryAlerts() -> shared/vehicleExpiry.js date/window rules. This works independently of email enablement.
+- Vehicle master forms -> features/masterConfig.js -> routes/masters.js -> validators/index.js -> Vehicle model. Checked insurance, PUC, fitness permit and advertising permit require respective expiry dates.
+- pages/Home.jsx -> features/ExpiryAlerts.jsx -> routes/reminders.js alerts -> expiryReminderService.js getExpiryAlerts() -> shared/vehicleExpiry.js date/window rules (tracking insurance, PUC, fitness permit and advertising permit). This works independently of email enablement.
 - pages/Settings.jsx -> ReminderSettings.jsx -> reminders settings endpoints (admin-only); ShiftSettings.jsx -> /api/settings/shifts -> shiftSettingsService.js, ShiftSettings model and Audit.
 - Scheduler tick() -> runExpiryReminders() -> settings/config checks -> eligible vehicle documents -> per-document/day/recipient delivery claim -> recheck current eligibility -> sendReminderEmail() -> Resend -> delivery state update. Failures are handled without making trip/vehicle saves depend on email.
 - The standalone reminder entry connects to MongoDB and invokes the same worker. No GitHub Actions workflow or external trigger endpoint is configured in this baseline. A sleeping web process cannot run its timer.

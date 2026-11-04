@@ -52,7 +52,7 @@ async function prepare(input, session) {
     if (trips.some(t=>t.periodFrom<from || t.periodTo>to)) throw new AppError("Selected trips must fall entirely inside the billing period");
     lines=trips.map(t=>({description:t.tripId + " - " + t.pickupLocation + " to " + t.dropLocation,
       vehicleId:String(t.vehicleId),vehicleNumber:t.vehicleNumber,quantity:1,rate:t.totalAmount,amount:t.totalAmount,taxable:true,
-      baseAmount:t.baseAmount,overtimeHours:t.overtimeHours,overtimeAmount:t.overtimeAmount,tollParking:t.extraAmount,nightDetentionAmount:t.calculation?.nightDetentionAmount||0}));
+      baseAmount:t.baseAmount,overtimeHours:t.overtimeHours,overtimeAmount:t.overtimeAmount,tollParking:t.extraAmount,nightDetentionAmount:0}));
     keys=input.tripIds.map(id=>"adhoc:"+id);
     const passes=await AccPass.find({customerId:c._id,archived:false}).session(session||null).lean();
     for(const row of adhocRows(trips.filter(t=>t.adhocService),passes,input.includeParking)){

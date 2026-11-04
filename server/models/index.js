@@ -40,6 +40,8 @@ export const Vehicle = make("Vehicle", {
   capacity: String,
   insuranceValid:{type:Boolean,default:false},insuranceExpiry:String,
   pucValid:{type:Boolean,default:false},pucExpiry:String,
+  fitnessValid:{type:Boolean,default:false},fitnessExpiry:String,
+  advertisingValid:{type:Boolean,default:false},advertisingExpiry:String,
   status: { type: String, default: "Active" },
   notes: String,
 });
@@ -74,7 +76,7 @@ export const TripRate = make("TripRate", {
   active:{type:Boolean,default:true},
 }, s=>s.index({vehicleType:1},{unique:true,partialFilterExpression:{archived:false,active:true}}));
 export const CityRate = make("CityRate", {
- ...common,rateId:{type:String,unique:true},vehicleType:{type:String,required:true},makeModel:String,tripRate:Number,overtimeRate:Number,nightDetention:Number,active:{type:Boolean,default:true},
+ ...common,rateId:{type:String,unique:true},vehicleType:{type:String,required:true},makeModel:String,tripRate:Number,overtimeRate:Number,active:{type:Boolean,default:true},
 },s=>s.index({vehicleType:1},{unique:true,partialFilterExpression:{archived:false,active:true}}));
 export const FleetRate = make("FleetRate", {
   ...common, rateId: {type:String,unique:true}, name:String, customerId:ref("Customer"), site:String,
