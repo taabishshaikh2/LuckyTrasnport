@@ -108,6 +108,21 @@ These describe the existing implementation, not newly approved changes or a comp
   - `server/scripts/generateUserGuide.js`
 - Verification: Documents generated cleanly; test suite passed (82/82); build verified.
 
+## D005 - Layman User Guide in Roman English with Screenshots and System Dependencies
+
+- ID/date: D005 - 4 November 2026.
+- Status: accepted (created and pushed per user explicit instruction).
+- Problem: Client required a simple, layman user guide in Roman English explaining how to add vehicles, configure rate charts, enter adhoc & special trips, issue GST invoices, and record payments, with real UI screenshots and explicit emphasis on system dependencies (e.g. vehicle must exist before trip; rate chart must exist before calculation; trip must be approved before invoice; invoice must exist before payment).
+- Decision: Generated `docs/Lucky_Transport_User_Guide_Roman_English.pdf` and `docs/USER_GUIDE_ROMAN_ENGLISH.md` via `server/scripts/generateRomanGuidePdf.js` using `pdfkit`. Embedded 8 real system screenshots saved in `docs/images/` covering vehicle registration, rate charts, multi-day trip entries, and invoice generation.
+- Alternatives: Producing only an English guide was insufficient for ground staff. Roman English provides an intuitive, conversational guide that drivers, fleet managers, and billing staff can easily digest.
+- Tradeoffs: Maintained both PDF (with embedded visual figures) and Markdown (for git diffs and web browsing).
+- Affected files:
+  - `docs/Lucky_Transport_User_Guide_Roman_English.pdf`
+  - `docs/USER_GUIDE_ROMAN_ENGLISH.md`
+  - `docs/images/*` (8 image assets)
+  - `server/scripts/generateRomanGuidePdf.js`
+- Verification: Script generated valid 314 KB PDF file; test suite passed 82/82; client production build passed cleanly.
+
 ## Documentation acceptance - 16 October 2026
 
 - Scope: D001 and D002; decision.md, flow.md and AGENTS.md.
